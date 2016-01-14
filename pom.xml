@@ -115,7 +115,6 @@
     </organization>
 
     <modules>
-        <module>asm-method-size</module>
         <module>javaslicer-core</module>
         <module>javaslicer-common</module>
         <module>javaslicer-tracer</module>
@@ -184,7 +183,7 @@
         <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm-all</artifactId>
-            <version>4.0.0-SPLIT</version>
+            <version>5.0.4</version>
         </dependency>
         <dependency>
             <groupId>de.hammacher</groupId>
@@ -227,7 +226,7 @@
                 <executions>
                     <execution>
                         <id>copy-artifact</id>
-                        <phase>package</phase>
+                        <phase>install</phase>
                         <goals>
                             <goal>copy</goal>
                         </goals>

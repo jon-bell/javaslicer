@@ -41,7 +41,6 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.splitlarge.SplitMethodWriterDelegate;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -73,7 +72,7 @@ public class Transformer implements ClassFileTransformer {
      */
     public static final class FixedClassWriter extends ClassWriter {
         protected FixedClassWriter(final int flags) {
-            super(flags,new SplitMethodWriterDelegate());
+            super(flags);
         }
 
         @Override
