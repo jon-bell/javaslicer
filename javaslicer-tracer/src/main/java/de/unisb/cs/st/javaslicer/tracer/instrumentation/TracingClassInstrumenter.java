@@ -97,19 +97,24 @@ public class TracingClassInstrumenter implements Opcodes {
         // test the size of the instrumented method
         final ClassWriter testCW = new ClassWriter(0);
         method.accept(testCW);
-        final int byteCodeSize = testCW.toByteArray().length;
-        if (byteCodeSize >= 1 << 16) {
-            System.err.format("WARNING: instrumented method \"%s.%s%s\" is larger than 64k bytes. undoing instrumentation.%n",
-                this.readClass.getName(), readMethod.getName(), readMethod.getDesc());
-            if (oldMethod == null) {
-                System.err.println("ERROR: uninstrumented method had less than 2000 instructions, so we cannot roll back the instrumentation...");
-            } else {
-                System.err.format("#instructions old: %d; #instructions new: %d; size new: %d%n",
-                    oldMethod.instructions.size(), method.instructions.size(), byteCodeSize);
-                copyMethod(oldMethod, method);
-            }
+        try{
+        	final int byteCodeSize = testCW.toByteArray().length;
         }
-
+        catch(RuntimeException ex)
+        {
+        	int byteCodeSize = 1 << 16 + 1;
+	        if (byteCodeSize >= 1 << 16) {
+	            System.err.format("WARNING: instrumented method \"%s.%s%s\" is larger than 64k bytes. undoing instrumentation.%n",
+	                this.readClass.getName(), readMethod.getName(), readMethod.getDesc());
+	            if (oldMethod == null) {
+	                System.err.println("ERROR: uninstrumented method had less than 2000 instructions, so we cannot roll back the instrumentation...");
+	            } else {
+	                System.err.format("#instructions old: %d; #instructions new: %d; size new: %d%n",
+	                    oldMethod.instructions.size(), method.instructions.size(), byteCodeSize);
+	                copyMethod(oldMethod, method);
+	            }
+	        }
+        }
         // reset the labels
         final Iterator<?> insnIt = method.instructions.iterator();
         while (insnIt.hasNext()) {
