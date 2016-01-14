@@ -115,6 +115,7 @@
     </organization>
 
     <modules>
+        <module>asm-method-size</module>
         <module>javaslicer-core</module>
         <module>javaslicer-common</module>
         <module>javaslicer-tracer</module>
@@ -181,9 +182,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>asm</groupId>
+            <groupId>org.ow2.asm</groupId>
             <artifactId>asm-all</artifactId>
-            <version>3.1</version>
+            <version>4.0.0-SPLIT</version>
         </dependency>
         <dependency>
             <groupId>de.hammacher</groupId>

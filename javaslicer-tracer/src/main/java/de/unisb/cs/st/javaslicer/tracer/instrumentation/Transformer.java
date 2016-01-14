@@ -23,6 +23,7 @@
 package de.unisb.cs.st.javaslicer.tracer.instrumentation;
 
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
@@ -40,6 +41,7 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.splitlarge.SplitMethodWriterDelegate;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -49,6 +51,7 @@ import org.objectweb.asm.tree.analysis.AnalyzerException;
 import org.objectweb.asm.tree.analysis.BasicVerifier;
 import org.objectweb.asm.tree.analysis.Frame;
 import org.objectweb.asm.util.CheckClassAdapter;
+import org.objectweb.asm.util.Textifier;
 import org.objectweb.asm.util.TraceMethodVisitor;
 
 import de.unisb.cs.st.javaslicer.common.classRepresentation.Field;
@@ -70,7 +73,7 @@ public class Transformer implements ClassFileTransformer {
      */
     public static final class FixedClassWriter extends ClassWriter {
         protected FixedClassWriter(final int flags) {
-            super(flags);
+            super(flags,new SplitMethodWriterDelegate());
         }
 
         @Override
@@ -259,7 +262,7 @@ public class Transformer implements ClassFileTransformer {
             writer = new FixedClassWriter(COMPUTE_FRAMES ? ClassWriter.COMPUTE_FRAMES : ClassWriter.COMPUTE_MAXS);
             ClassVisitor output = this.tracer.check ? new CheckClassAdapter(writer) : writer;
 
-            classNode.accept(COMPUTE_FRAMES ? new JSRInliner(output) : output);
+            classNode.accept((COMPUTE_FRAMES ? new JSRInliner(output) : output));
 
             this.totalBytecodeWritingTime.addAndGet(System.nanoTime() - nanosAfterTransformation);
 
@@ -329,8 +332,9 @@ public class Transformer implements ClassFileTransformer {
     }
 
     public static void printMethod(PrintStream out, MethodNode method) {
-        final TraceMethodVisitor mv = new TraceMethodVisitor();
-
+    	Textifier t = new Textifier();
+        final TraceMethodVisitor mv = new TraceMethodVisitor(t);
+        
         out.println(method.name + method.desc);
         for (int j = 0; j < method.instructions.size(); ++j) {
             method.instructions.get(j).accept(mv);
@@ -340,11 +344,11 @@ public class Transformer implements ClassFileTransformer {
                 s.append(' ');
             }
             out.print(Integer.toString(j + 100000).substring(1));
-            out.print(" " + s + " : " + mv.text.get(j));
+            out.print(" " + s + " : " + t.text.get(j));
         }
         for (int j = 0; j < method.tryCatchBlocks.size(); ++j) {
             ((TryCatchBlockNode) method.tryCatchBlocks.get(j)).accept(mv);
-            out.print(" " + mv.text.get(method.instructions.size()+j));
+            out.print(" " + t.text.get(method.instructions.size()+j));
         }
         out.println(" MAXSTACK " + method.maxStack);
         out.println(" MAXLOCALS " + method.maxLocals);
@@ -354,7 +358,8 @@ public class Transformer implements ClassFileTransformer {
     private static void printMethod(final Analyzer a, final PrintStream out, final MethodNode method) {
         final Frame[] frames = a.getFrames();
 
-        final TraceMethodVisitor mv = new TraceMethodVisitor();
+        Textifier t = new Textifier();
+        final TraceMethodVisitor mv = new TraceMethodVisitor(t);
 
         out.println(method.name + method.desc);
         for (int j = 0; j < method.instructions.size(); ++j) {
@@ -377,11 +382,11 @@ public class Transformer implements ClassFileTransformer {
                 s.append(' ');
             }
             out.print(Integer.toString(j + 100000).substring(1));
-            out.print(" " + s + " : " + mv.text.get(j));
+            out.print(" " + s + " : " + t.text.get(j));
         }
         for (int j = 0; j < method.tryCatchBlocks.size(); ++j) {
             ((TryCatchBlockNode) method.tryCatchBlocks.get(j)).accept(mv);
-            out.print(" " + mv.text.get(method.instructions.size()+j));
+            out.print(" " + t.text.get(method.instructions.size()+j));
         }
         out.println(" MAXSTACK " + method.maxStack);
         out.println(" MAXLOCALS " + method.maxLocals);
