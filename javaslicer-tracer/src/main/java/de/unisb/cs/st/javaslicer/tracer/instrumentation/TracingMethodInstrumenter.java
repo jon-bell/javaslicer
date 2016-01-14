@@ -240,14 +240,14 @@ public class TracingMethodInstrumenter implements Opcodes {
         this.instructionIterator = new FixedInstructionIterator(this.methodNode.instructions);
         // in the old method, initialize the new local variable for the threadtracer
         this.instructionIterator.add(new MethodInsnNode(INVOKESTATIC, Type.getInternalName(Tracer.class),
-                "getInstance", "()L"+Type.getInternalName(Tracer.class)+";"));
+                "getInstance", "()L"+Type.getInternalName(Tracer.class)+";", false));
         this.instructionIterator.add(new MethodInsnNode(INVOKEVIRTUAL, Type.getInternalName(Tracer.class),
-                "getThreadTracer", "()L"+Type.getInternalName(ThreadTracer.class)+";"));
+                "getThreadTracer", "()L"+Type.getInternalName(ThreadTracer.class)+";", false));
         this.instructionIterator.add(new InsnNode(DUP));
         this.instructionIterator.add(new VarInsnNode(ASTORE, this.tracerLocalVarIndex));
 
         this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
-                Type.getInternalName(ThreadTracer.class), "isPaused", "()Z"));
+                Type.getInternalName(ThreadTracer.class), "isPaused", "()Z", true));
         final LabelNode noTracingLabel = new LabelNode();
         this.instructionIterator.add(new JumpInsnNode(IFNE, noTracingLabel));
         // create a copy of the (uninstrumented) instructions (later, while iterating through the instructions)
@@ -375,7 +375,7 @@ public class TracingMethodInstrumenter implements Opcodes {
         		this.methodNode.instructions.add(getIntConstInsn(handler.getValue()));
 	            this.methodNode.instructions.add(new MethodInsnNode(INVOKEINTERFACE,
 	                Type.getInternalName(ThreadTracer.class), "traceObject",
-	                "(Ljava/lang/Object;I)V"));
+	                "(Ljava/lang/Object;I)V", true));
 	            this.methodNode.instructions.add(new InsnNode(ATHROW));
         	}
         	this.newArrayErrorHandlers = null;
@@ -538,7 +538,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             final Type[] newMethodArguments = Arrays.copyOf(oldMethodArguments, oldMethodArguments.length+1);
             newMethodArguments[oldMethodArguments.length] = Type.getType(ThreadTracer.class);
             final String newDesc = Type.getMethodDescriptor(Type.getReturnType(insn.desc), newMethodArguments);
-            this.instructionIterator.set(thisInsn = new MethodInsnNode(insn.getOpcode(), insn.owner, insn.name, newDesc));
+            this.instructionIterator.set(thisInsn = new MethodInsnNode(insn.getOpcode(), insn.owner, insn.name, newDesc, insn.itf));
         }
 
         // if the method was a constructor, but it is no delegating constructor call and no super constructor call,
@@ -547,7 +547,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             this.instructionIterator.add(new VarInsnNode(ALOAD, this.tracerLocalVarIndex));
             this.instructionIterator.add(new InsnNode(SWAP));
             this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
-                Type.getInternalName(ThreadTracer.class), "objectInitialized", "(Ljava/lang/Object;)V"));
+                Type.getInternalName(ThreadTracer.class), "objectInitialized", "(Ljava/lang/Object;)V", true));
             --this.outstandingInitializations;
         }
 
@@ -683,7 +683,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             this.instructionIterator.add(getIntConstInsn(objectTraceSeqIndex));
             this.instructionIterator.add(new MethodInsnNode(
                     INVOKEINTERFACE, Type.getInternalName(ThreadTracer.class),
-                    "traceObject", "(Ljava/lang/Object;I)V"));
+                    "traceObject", "(Ljava/lang/Object;I)V", true));
             // and move to the position where it was before entering this method
             this.instructionIterator.next();
         }
@@ -815,12 +815,12 @@ public class TracingMethodInstrumenter implements Opcodes {
             this.instructionIterator.add(new InsnNode(SWAP));
             this.instructionIterator.add(getIntConstInsn(indexTraceSeqIndex));
             this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
-                    Type.getInternalName(ThreadTracer.class), "traceInt", "(II)V"));
+                    Type.getInternalName(ThreadTracer.class), "traceInt", "(II)V", true));
             this.instructionIterator.add(new VarInsnNode(ALOAD, this.tracerLocalVarIndex));
             this.instructionIterator.add(new InsnNode(SWAP));
             this.instructionIterator.add(getIntConstInsn(arrayTraceSeqIndex));
             this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
-                    Type.getInternalName(ThreadTracer.class), "traceObject", "(Ljava/lang/Object;I)V"));
+                    Type.getInternalName(ThreadTracer.class), "traceObject", "(Ljava/lang/Object;I)V", true));
             // and move to the position where it was before entering this method
             this.instructionIterator.next();
 
@@ -849,7 +849,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             this.instructionIterator.add(getIntConstInsn(newObjectIdSeqIndex));
             this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
                 Type.getInternalName(ThreadTracer.class), "traceObject",
-                "(Ljava/lang/Object;I)V"));
+                "(Ljava/lang/Object;I)V", true));
             // and add it *before* the other try-catch blocks
             this.methodNode.tryCatchBlocks.add(0, new TryCatchBlockNode(startLabel, endLabel, handlerLabel, "java/lang/OutOfMemoryError"));
             if (this.newArrayErrorHandlers == null)
@@ -919,7 +919,7 @@ public class TracingMethodInstrumenter implements Opcodes {
         this.instructionIterator.add(getIntConstInsn(newObjIdSeqIndex));
         this.instructionIterator.add(new MethodInsnNode(INVOKESTATIC,
             Type.getInternalName(TracingMethodInstrumenter.class), "traceMultiANewArray",
-            "([I[Ljava/lang/Object;"+Type.getDescriptor(ThreadTracer.class)+"II)V"));
+            "([I[Ljava/lang/Object;"+Type.getDescriptor(ThreadTracer.class)+"II)V", false));
     }
 
     public static void traceMultiANewArray(final int[] dimensions, final Object[] newArray,
@@ -981,7 +981,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             this.instructionIterator.add(getIntConstInsn(newObjectIdSeqIndex));
             this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
                 Type.getInternalName(ThreadTracer.class), "traceObject",
-                "(Ljava/lang/Object;I)V"));
+                "(Ljava/lang/Object;I)V", true));
             // and add it *before* the other try-catch blocks
             this.methodNode.tryCatchBlocks.add(0, new TryCatchBlockNode(startLabel, endLabel, handlerLabel, "java/lang/OutOfMemoryError"));
             if (this.newArrayErrorHandlers == null)
@@ -1048,7 +1048,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             this.instructionIterator.add(getIntConstInsn(instruction.getIndex()));
             this.instructionIterator.add(getIntConstInsn(newObjectIdSeqIndex));
             this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
-                    Type.getInternalName(ThreadTracer.class), "objectAllocated", "(II)V"));
+                    Type.getInternalName(ThreadTracer.class), "objectAllocated", "(II)V", true));
             this.instructionIterator.next();
             ++TracingMethodInstrumenter.statsInstructions;
         } else {
@@ -1095,7 +1095,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             this.instructionIterator.add(new VarInsnNode(ALOAD, this.tracerLocalVarIndex));
             this.instructionIterator.add(getIntConstInsn(lm.getTraceSeqIndex()));
             this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
-                    Type.getInternalName(ThreadTracer.class), "traceLastInstructionIndex", "(I)V"));
+                    Type.getInternalName(ThreadTracer.class), "traceLastInstructionIndex", "(I)V", true));
 
             // stats
             if (isAdditionalLabel)
@@ -1125,7 +1125,7 @@ public class TracingMethodInstrumenter implements Opcodes {
                 this.instructionIterator.add(new VarInsnNode(ALOAD, this.tracerLocalVarIndex));
                 this.instructionIterator.add(getIntConstInsn(lm.getIndex()));
                 this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
-                        Type.getInternalName(ThreadTracer.class), methodName, "(I)V"));
+                        Type.getInternalName(ThreadTracer.class), methodName, "(I)V", true));
             }
             ++TracingMethodInstrumenter.statsInstructions;
         } else {
@@ -1156,7 +1156,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             this.instructionIterator.add(new VarInsnNode(ALOAD, this.tracerLocalVarIndex));
             this.instructionIterator.add(getIntConstInsn(instruction.getIndex()));
             this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
-                    Type.getInternalName(ThreadTracer.class), methodName, "(I)V"));
+                    Type.getInternalName(ThreadTracer.class), methodName, "(I)V", true));
             this.instructionIterator.next();
         }
         ++TracingMethodInstrumenter.statsInstructions;

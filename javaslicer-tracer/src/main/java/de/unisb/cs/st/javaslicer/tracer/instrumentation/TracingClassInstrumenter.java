@@ -98,7 +98,7 @@ public class TracingClassInstrumenter implements Opcodes {
         final ClassWriter testCW = new ClassWriter(0);
         method.accept(testCW);
         try{
-        	final int byteCodeSize = testCW.toByteArray().length;
+        	 testCW.toByteArray();
         }
         catch(RuntimeException ex)
         {

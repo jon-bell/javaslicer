@@ -23,7 +23,6 @@
 package de.unisb.cs.st.javaslicer.tracer.instrumentation;
 
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
