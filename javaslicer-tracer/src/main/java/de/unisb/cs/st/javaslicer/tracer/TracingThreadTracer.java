@@ -459,7 +459,7 @@ public class TracingThreadTracer implements ThreadTracer {
     }
 
     @Override
-    public synchronized void objectAllocated(final int instructionIndex, final int traceSequenceNr) {
+    public synchronized void objectAllocated(final int traceSequenceNr) {
         if (this.paused > 0)
             return;
 
@@ -470,8 +470,6 @@ public class TracingThreadTracer implements ThreadTracer {
         }
         this.objectAllocationTraceSequence[this.uninitializedObjects++] = traceSequenceNr;
         assert traceSequenceNr != 0;
-
-        passInstruction(instructionIndex);
     }
 
     @Override

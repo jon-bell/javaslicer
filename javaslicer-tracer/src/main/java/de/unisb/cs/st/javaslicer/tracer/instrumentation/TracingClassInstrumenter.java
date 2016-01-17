@@ -39,6 +39,9 @@ import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.LocalVariableNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TryCatchBlockNode;
+import org.objectweb.asm.util.CheckMethodAdapter;
+import org.objectweb.asm.util.Textifier;
+import org.objectweb.asm.util.TraceMethodVisitor;
 
 import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadClass;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadMethod;
@@ -75,6 +78,8 @@ public class TracingClassInstrumenter implements Opcodes {
         final ReadMethod readMethod = new ReadMethod(this.readClass, method.access,
                 method.name, method.desc, AbstractInstruction.getNextIndex());
         this.readClass.addMethod(readMethod);
+        method.maxLocals = 0;
+        method.maxStack = 0;
 
         // do not instrument <clinit> methods (break (linear) control flow)
         // because these methods may call other methods, we have to pause tracing when they are entered
@@ -95,7 +100,14 @@ public class TracingClassInstrumenter implements Opcodes {
         new TracingMethodInstrumenter(this.tracer, readMethod, classNode, method).transform(methodIt);
 
         // test the size of the instrumented method
-        final ClassWriter testCW = new ClassWriter(0);
+        final ClassWriter testCW = new ClassWriter(ClassWriter.COMPUTE_MAXS)
+        {
+        	@Override
+        	protected String getCommonSuperClass(String type1, String type2) {
+        		return "Java/lang/Object";
+        	}  
+        };
+        testCW.visit(V1_7, Opcodes.ACC_PUBLIC, readClass.getInternalClassName(), null, "java/lang/Object", new String[0]);
         method.accept(testCW);
         try{
         	 testCW.toByteArray();

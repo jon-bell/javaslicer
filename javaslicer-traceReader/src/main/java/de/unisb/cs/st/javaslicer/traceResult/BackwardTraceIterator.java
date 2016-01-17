@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.util.Printer;
 
 import de.hammacher.util.iterators.EmptyIterator;
 import de.hammacher.util.maps.IntegerMap;
@@ -127,10 +128,15 @@ public class BackwardTraceIterator<InstanceType extends InstructionInstance>
     private InstanceType getNextInstruction(final int nextIndex) throws TracerException {
         int index = nextIndex;
         while (true) {
-            if (WRITE_ITERATION_DEBUG_FILE) {
-                this.debugFileWriter.println(index);
-            }
             final Instruction backwardInstruction = this.threadTraceResult.findInstruction(index);
+            if (WRITE_ITERATION_DEBUG_FILE) {
+                this.debugFileWriter.print(index);
+                if(index >= 0)
+					this.debugFileWriter.print(" " + backwardInstruction.getMethod().getReadClass().getName() + "." + backwardInstruction.getMethod().getName() + ":"
+							+ backwardInstruction.getLineNumber() + "\t" + backwardInstruction.getType() + "\t"+(backwardInstruction.getOpcode() > 0 ? Printer.OPCODES[backwardInstruction.getOpcode()] : ""));
+                this.debugFileWriter.println();
+                this.debugFileWriter.flush();
+            }
             if (backwardInstruction == null) {
                 assert index == -1;
                 return null;

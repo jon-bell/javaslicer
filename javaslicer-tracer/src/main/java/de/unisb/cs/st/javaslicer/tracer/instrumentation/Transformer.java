@@ -22,7 +22,12 @@
  */
 package de.unisb.cs.st.javaslicer.tracer.instrumentation;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
@@ -39,6 +44,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
@@ -50,6 +57,7 @@ import org.objectweb.asm.tree.analysis.BasicVerifier;
 import org.objectweb.asm.tree.analysis.Frame;
 import org.objectweb.asm.util.CheckClassAdapter;
 import org.objectweb.asm.util.Textifier;
+import org.objectweb.asm.util.TraceClassVisitor;
 import org.objectweb.asm.util.TraceMethodVisitor;
 
 import de.unisb.cs.st.javaslicer.common.classRepresentation.Field;
@@ -131,7 +139,30 @@ public class Transformer implements ClassFileTransformer {
             final String javaClassName = Type.getObjectType(className).getClassName();
             if (isExcluded(javaClassName))
                 return null;
-            return transform0(className, javaClassName, classfileBuffer);
+            final byte[] ret = transform0(className, javaClassName, classfileBuffer);
+            if(tracer.debug)
+            {
+            	File debugDir = new File("debug");
+				if (!debugDir.exists())
+					debugDir.mkdir();
+				File f = new File("debug/" + className.replace("/", ".") + ".class");
+				FileOutputStream fos;
+				try {
+					fos = new FileOutputStream(f);
+					fos.write(ret);
+					fos.close();
+					PrintWriter pw = new PrintWriter(new File("debug/"+ className.replace("/", ".") + ".txt"));
+					TraceClassVisitor tcv = new TraceClassVisitor(pw);
+					ClassReader cr = new ClassReader(ret);
+					cr.accept(tcv,0);
+					pw.close();
+				} catch (FileNotFoundException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+            }
+            return ret;
         } catch (TracerException e) {
             System.err.println("Error transforming class " + className + ": " + e.getMessage());
             return null;
@@ -257,11 +288,22 @@ public class Transformer implements ClassFileTransformer {
             long nanosAfterTransformation = System.nanoTime();
             this.totalRawTransformationTime.addAndGet(nanosAfterTransformation - nanosBeforeTransformation);
 
-            writer = new FixedClassWriter(COMPUTE_FRAMES ? ClassWriter.COMPUTE_FRAMES : ClassWriter.COMPUTE_MAXS);
-            ClassVisitor output = this.tracer.check ? new CheckClassAdapter(writer) : writer;
+            writer = new FixedClassWriter(COMPUTE_FRAMES ? ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS: ClassWriter.COMPUTE_MAXS);
 
-            classNode.accept((COMPUTE_FRAMES ? new JSRInliner(output) : output));
-
+            classNode.accept((COMPUTE_FRAMES ? new JSRInliner(writer) : writer));
+            
+            if(this.tracer.check)
+            {
+            	ClassReader _cr = new ClassReader(writer.toByteArray());
+            	CheckClassAdapter cca = new CheckClassAdapter(new ClassVisitor(Opcodes.ASM5) {
+            		@Override
+            		public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+            			return new MethodVisitor(Opcodes.ASM5) {
+						};
+            		}
+				});
+            	_cr.accept(cca, 0);
+            }
             this.totalBytecodeWritingTime.addAndGet(System.nanoTime() - nanosAfterTransformation);
 
             readClass.setInstructionNumberEnd(AbstractInstruction.getNextIndex());

@@ -349,6 +349,8 @@ public class Slicer {
                                 instance.criterionDistance = 0;
                             }
                             break;
+                        case Opcodes.INVOKEDYNAMIC:
+                        	throw new UnsupportedOperationException("No Invokedynamic support yet");
                         case Opcodes.INVOKEINTERFACE:
                         case Opcodes.INVOKESPECIAL:
                         case Opcodes.INVOKESTATIC:
