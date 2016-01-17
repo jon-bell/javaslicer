@@ -13,7 +13,9 @@
 	<name>Core of the slicing component of JAVASLICER</name>
 	<description>Computes slices of Java programs, based on a bytecode trace.</description>
 	<packaging>jar</packaging>
-
+	<properties>
+		<assemblydir>${project.parent.basedir}/assembly/</assemblydir>
+	</properties>
 	<build>
 		<plugins>
 			<plugin>
@@ -44,6 +46,31 @@
 								</relocation>
 							</relocations>
 							<minimizeJar>false</minimizeJar>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>copy-artifact</id>
+						<phase>install</phase>
+						<goals>
+							<goal>copy</goal>
+						</goals>
+						<configuration>
+							<artifactItems>
+								<artifactItem>
+									<groupId>${project.groupId}</groupId>
+									<artifactId>javaslicer-core</artifactId>
+									<version>${project.version}</version>
+									<type>${project.packaging}</type>
+									<destFileName>slicer.jar</destFileName>
+								</artifactItem>
+							</artifactItems>
+							<outputDirectory>${assemblydir}</outputDirectory>
 						</configuration>
 					</execution>
 				</executions>

@@ -13,7 +13,9 @@
 	<name>Slice representation in a JUNG graph</name>
 	<description>Creates a JUNG graph that represents the dynamic slice.</description>
 	<packaging>jar</packaging>
-
+	<properties>
+		<assemblydir>${project.parent.basedir}/assembly/</assemblydir>
+	</properties>
 	<build>
 		<plugins>
 			<plugin>
@@ -38,6 +40,31 @@
 						</goals>
 						<configuration>
 							<minimizeJar>false</minimizeJar>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>copy-artifact</id>
+						<phase>install</phase>
+						<goals>
+							<goal>copy</goal>
+						</goals>
+						<configuration>
+							<artifactItems>
+								<artifactItem>
+									<groupId>${project.groupId}</groupId>
+									<artifactId>javaslicer-jung</artifactId>
+									<version>${project.version}</version>
+									<type>${project.packaging}</type>
+									<destFileName>visualize.jar</destFileName>
+								</artifactItem>
+							</artifactItems>
+							<outputDirectory>${assemblydir}</outputDirectory>
 						</configuration>
 					</execution>
 				</executions>
