@@ -52,6 +52,54 @@
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<version>2.18.1</version>
+				<executions>
+					<execution>
+						<id>generate-traces</id>
+						<configuration>
+							<skipTests>${skipTracing}</skipTests>
+							<includes>
+								<include>edu/columbia/cs/psl/javaslicer/tracedTests/Test*.java</include>
+							</includes>
+							<reuseForks>false</reuseForks>
+							<trimStackTrace>false</trimStackTrace>
+							<useFile>false</useFile>
+							<argLine>-Xbootclasspath/p:${project.parent.basedir}/javaslicer-tracer/target/javaslicer-tracer-${project.version}.jar
+								-javaagent:${project.parent.basedir}/javaslicer-tracer/target/javaslicer-tracer-${project.version}.jar=tracefile:${project.build.directory}/trace.,useTestName:true,ignoreBootPath:true</argLine>
+						</configuration>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>slice-traces</id>
+						<configuration>
+							<includes>
+								<include>edu/columbia/cs/psl/javaslicer/sliceTests/Test*.java</include>
+							</includes>
+							<trimStackTrace>false</trimStackTrace>
+							<useFile>false</useFile>
+						</configuration>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>2.18.1</version>
+				<configuration>
+					<skipTests>true</skipTests>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-dependency-plugin</artifactId>
 				<executions>
 					<execution>

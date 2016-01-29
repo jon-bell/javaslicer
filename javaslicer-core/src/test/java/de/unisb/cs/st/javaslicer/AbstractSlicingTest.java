@@ -157,6 +157,65 @@ public abstract class AbstractSlicingTest {
 
         return new ArrayList<Instruction>(slice);
     }
+    
+    protected static List<Instruction> getSliceNew(String traceFilename, String thread, String criterion)
+            throws IllegalArgumentException, IOException, URISyntaxException, InterruptedException {
+        File traceFile = new File(traceFilename);
+        TraceResult trace = TraceResult.readFrom(traceFile);
+
+        List<SlicingCriterion> sc = StaticSlicingCriterion.parseAll(criterion, trace.getReadClasses());
+
+        ThreadId threadId = null;
+        for (ThreadId t: trace.getThreads()) {
+            if (thread.equals(t.getThreadName())) {
+                    threadId = t;
+                    break;
+            }
+        }
+
+        assertTrue("Thread not found", threadId != null);
+
+        Slicer slicer = new Slicer(trace);
+        SliceInstructionsCollector collector = new SliceInstructionsCollector();
+        slicer.addSliceVisitor(collector);
+        slicer.process(threadId, sc, true);
+        Set<Instruction> slice = new TreeSet<Instruction>(collector.getDynamicSlice());
+
+        Set<Instruction> slice2 = new TreeSet<Instruction>(new DirectSlicer(trace).getDynamicSlice(threadId, sc));
+
+        SliceEntry[] arr1 = new SliceEntry[slice.size()];
+        Iterator<Instruction> sliceIt = slice.iterator();
+        for (int i = 0; i < slice.size(); ++i) {
+            arr1[i] = instrToSliceEntry(sliceIt.next());
+        }
+        SliceEntry[] arr2 = new SliceEntry[slice2.size()];
+        Iterator<Instruction> sliceIt2 = slice2.iterator();
+        for (int i = 0; i < slice2.size(); ++i) {
+            arr2[i] = instrToSliceEntry(sliceIt2.next());
+        }
+
+        Diff differ = new Diff(arr1, arr2);
+        change diff = differ.diff_2(false);
+        if (diff != null) {
+            StringWriter sw = new StringWriter();
+            sw.append("both slicing methods should yield the same result!\n" +
+            	"diff (Slicer -> DirectSlicer):\n\n");
+            DiffPrint.SimplestPrint pr = new DiffPrint.SimplestPrint(arr1, arr2);
+            pr.setOutput(sw);
+            pr.print_script(diff);
+            sw.append("\n\nSlicer:\n");
+            for (SliceEntry s: arr1)
+            	sw.append(s.toString()).append("\n");
+            sw.append("\nDirectSlicer:\n");
+            for (SliceEntry s: arr2)
+            	sw.append(s.toString()).append("\n");
+            Assert.fail(sw.toString());
+        }
+        assertTrue("diff should already have checked this: both slicing methods should yield the same result",
+            new HashSet<Instruction>(slice).equals(new HashSet<Instruction>(slice2)));
+
+        return new ArrayList<Instruction>(slice);
+    }
 
     private static Pattern sliceEntryPattern = Pattern.compile("^([^ ]+):([0-9]+) (.*)$");
 
