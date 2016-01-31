@@ -890,6 +890,8 @@ public class TracingMethodInstrumenter implements Opcodes {
     private void transformLdcInsn(final LdcInsnNode insn) {
         registerInstruction(new LdcInstruction(this.readMethod, this.currentLine, insn.cst),
                 insn.cst instanceof Number ? InstructionType.SAFE : InstructionType.UNSAFE);
+        if(!(insn.cst instanceof Number))
+        	traceLabel(null, InstructionType.UNSAFE);        
     }
 
     private void transformLookupSwitchInsn(final LookupSwitchInsnNode insn) {
@@ -946,6 +948,7 @@ public class TracingMethodInstrumenter implements Opcodes {
         this.instructionIterator.add(new MethodInsnNode(INVOKESTATIC,
             Type.getInternalName(TracingMethodInstrumenter.class), "traceMultiANewArray",
             "([I[Ljava/lang/Object;"+Type.getDescriptor(ThreadTracer.class)+"II)V", false));
+        traceLabel(null, InstructionType.UNSAFE);
     }
 
     public static void traceMultiANewArray(final int[] dimensions, final Object[] newArray,
@@ -1013,6 +1016,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             if (this.newArrayErrorHandlers == null)
             	this.newArrayErrorHandlers = new HashMap<LabelNode, Integer>();
             this.newArrayErrorHandlers.put(handlerLabel, newObjectIdSeqIndex);
+            traceLabel(null, InstructionType.UNSAFE);
         } else if (insn.getOpcode() == NEW) {
             // after a NEW, we store the sequence number in the ThreadTracer object.
             // after the constructor has been called (which is guaranteed), its
@@ -1082,6 +1086,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             registerInstruction(new TypeInstruction(this.readMethod, insn.getOpcode(), this.currentLine,
                 insn.desc, -1),
                 InstructionType.UNSAFE);
+            traceLabel(null, InstructionType.UNSAFE);
         }
     }
 
