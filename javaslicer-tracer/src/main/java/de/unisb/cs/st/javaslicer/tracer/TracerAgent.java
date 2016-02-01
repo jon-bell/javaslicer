@@ -180,7 +180,9 @@ public class TracerAgent {
         			}
 					s.close();
 					logFilename += tc;
-
+					File ff = new File(logFilename);
+					if(!ff.getParentFile().exists())
+						ff.getParentFile().mkdirs();
         		} catch (Throwable t) {
         			t.printStackTrace();
         		}
