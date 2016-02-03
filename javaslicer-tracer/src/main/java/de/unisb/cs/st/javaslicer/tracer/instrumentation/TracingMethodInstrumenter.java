@@ -1026,7 +1026,7 @@ public class TracingMethodInstrumenter implements Opcodes {
                 this.currentLine, insn.desc, newObjectIdSeqIndex);
             registerInstruction(instruction, InstructionType.UNSAFE); //NEW might cause a jump to classloader
             if (!this.instructionIterator.hasNext()) {
-                if (this.tracer.debug)
+//                if (this.tracer.debug)
                     Transformer.printMethod(System.err, this.methodNode);
                 throw new TracerException("Bytecode of method "+this.classNode.name+"."+this.methodNode.name+
                     " has unsupported form (constructor call does not immediately follow NEW instruction). " +
@@ -1050,8 +1050,38 @@ public class TracingMethodInstrumenter implements Opcodes {
                         matches = true;
                     }
                 }
-
-                if (matches) {
+                boolean matches2 = false;
+                if(!matches)
+                {
+                	/*
+                	 * (long)
+                	 * dupx2
+                	 * dupx2
+                	 * pop
+                	 * NEW java.lang.long
+                	 * invokespecial
+                	 */
+                	if(dup_x1.getOpcode() == DUP_X2 && this.instructionIterator.hasNext())
+                	{
+                		AbstractInsnNode dup2x22 = this.instructionIterator.next();
+                		if(dup2x22.getOpcode() == DUP_X2 && this.instructionIterator.hasNext())
+                		{
+                			AbstractInsnNode pop = this.instructionIterator.next();
+                			if(pop.getOpcode() == POP && this.instructionIterator.hasNext())
+                			{
+                				matches2 = true;
+                			}
+                		}
+                	}
+                }
+                if(matches2)
+                {
+                	this.instructionIterator.previous();
+                    this.instructionIterator.previous();
+                    this.instructionIterator.previous();
+                    this.instructionIterator.add(new InsnNode(DUP_X2));
+                }
+                else if (matches) {
                     // add another DUP_X1 before the existing one
                     this.instructionIterator.previous();
                     this.instructionIterator.previous();
