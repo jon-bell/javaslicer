@@ -91,4 +91,9 @@ public class NullThreadTracer implements ThreadTracer {
         // nop
     }
 
+    @Override
+    public int getInsnsExecuted() {
+        return 0;
+    }
+
 }

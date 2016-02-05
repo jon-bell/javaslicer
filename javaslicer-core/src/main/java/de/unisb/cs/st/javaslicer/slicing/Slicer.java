@@ -86,7 +86,7 @@ public class Slicer {
         public boolean onDynamicSlice = false;
 
         // these variables are used to resolve which data dependences to follow:
-        public boolean allDataInteresting = false;
+        public boolean fullTransitiveClosure = false;
         public Variable interestingVariable = null;
         public Set<Variable> moreInterestingVariables = null;
 
@@ -312,12 +312,21 @@ public class Slicer {
                         this.critOccurenceNumbers[stackDepth] = crit.getOccurenceNumber();
                         assert this.critOccurenceNumbers[stackDepth] > 0;
                         // for each criterion, there are three cases:
-                        //  - track all data read by the instruction
+                        //  - track all data and control dependences of the instruction
                         //  - track a given set of local variables
                         //  - track the control dependences of this instruction
-                        // in the second case, the instruction itself is not added to the dynamic slice
-                        instance.allDataInteresting = crit.matchAllData();
-                        if (!instance.allDataInteresting && crit.hasLocalVariables()) {
+                        // only in the first case, the instruction itself is added to the dynamic slice
+                        instance.fullTransitiveClosure = crit.computeTransitiveClosure();
+                        if (instance.fullTransitiveClosure) {
+                            // first case
+                            if (instruction.getType() != InstructionType.LABEL &&
+                                    instruction.getOpcode() != Opcodes.GOTO)
+                                for (SliceVisitor vis : this.sliceVisitorsArray)
+                                    vis.visitMatchedInstance(instance);
+                            instance.onDynamicSlice = true;
+                            instance.criterionDistance = 0;
+                        } else if (crit.hasLocalVariables()) {
+                            // second case
                             if (this.interestingLocalVariables.length <= stackDepth) {
                                 @SuppressWarnings("unchecked")
                                 IntegerMap<Object>[] newInterestingLocalVariables =
@@ -331,9 +340,7 @@ public class Slicer {
                             for (LocalVariable i : localVariables)
                                 this.interestingLocalVariables[stackDepth].put(i.getIndex(), null);
                         } else {
-                            if (instruction.getType() != InstructionType.LABEL)
-                                for (SliceVisitor vis : this.sliceVisitorsArray)
-                                    vis.visitMatchedInstance(instance);
+                            // third case
                             instance.onDynamicSlice = true;
                             instance.criterionDistance = 0;
                         }
@@ -358,7 +365,7 @@ public class Slicer {
                                     vis.visitMatchedInstance(instance);
                                 instance.onDynamicSlice = true;
                                 // and we want to know where the data comes from...
-                                instance.allDataInteresting = true;
+                                instance.fullTransitiveClosure = true;
                                 instance.criterionDistance = 0;
                             }
                             break;
@@ -386,7 +393,7 @@ public class Slicer {
                                             instance.onDynamicSlice = true;
                                             // and we want to know where the data comes from...
                                             // TODO
-                                            instance.allDataInteresting = true;
+                                            instance.fullTransitiveClosure = true;
                                             instance.criterionDistance = 0;
                                         }
                                     }
@@ -454,7 +461,7 @@ public class Slicer {
 					}
 				}
                 if (!calledMethodDependence) {
-                    to.allDataInteresting = true;
+                    to.fullTransitiveClosure = true;
                 }
 			}
 
@@ -466,7 +473,7 @@ public class Slicer {
                 assert type == DataDependenceType.READ_AFTER_WRITE;
 
                 if (from.onDynamicSlice && // from must definitively be on the dynamic slice
-                        (from.allDataInteresting || // and either we want to track all data dependencies
+                        (from.fullTransitiveClosure || // and either we want to track all data dependencies
                             (from.interestingVariable != null && ( // or (if the interestingVariable is set) ...
                                 from.interestingVariable.equals(toVar) || // the interestingVariable must be the one we are just visiting
                                 (from.moreInterestingVariables != null && from.moreInterestingVariables.contains(toVar)))))) { // or it must be in the set of more variables

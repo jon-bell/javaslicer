@@ -57,56 +57,17 @@
         </developer>
     </developers>
 
-    <!-- TODO Clear licensing with your tutor. -->
-    <!--licenses>
+    <licenses>
         <license>
-            <name>Eclipse Public License (EPL)</name>
-            <url>http://www.opensource.org/licenses/eclipse-1.0.txt</url>
-            <distribution>manual</distribution>
+            <name>GNU GPLv3</name>
+            <url>http://gplv3.fsf.org/</url>
         </license>
-    </licenses-->
-
-    <ciManagement>
-        <system>hudson</system>
-        <url>http://kubrick:8070/</url>
-        <notifiers>
-            <notifier>
-                <type>mail</type>
-                <configuration>
-                    <recipients>hammacher@st.cs.uni-saarland.de</recipients>
-                </configuration>
-                <sendOnError>true</sendOnError>
-                <sendOnFailure>true</sendOnFailure>
-                <sendOnSuccess>true</sendOnSuccess>
-                <sendOnWarning>true</sendOnWarning>
-            </notifier>
-            <notifier>
-                <type>mail</type>
-                <configuration>
-                    <recipients>mburger@cs.uni-saarland.de</recipients>
-                </configuration>
-                <sendOnError>true</sendOnError>
-                <sendOnFailure>true</sendOnFailure>
-                <sendOnSuccess>false</sendOnSuccess>
-                <sendOnWarning>true</sendOnWarning>
-            </notifier>
-            <notifier>
-                <type>mail</type>
-                <configuration>
-                    <recipients>dallmeier@cs.uni-saarland.de</recipients>
-                </configuration>
-                <sendOnError>true</sendOnError>
-                <sendOnFailure>true</sendOnFailure>
-                <sendOnSuccess>false</sendOnSuccess>
-                <sendOnWarning>true</sendOnWarning>
-            </notifier>
-        </notifiers>
-    </ciManagement>
+    </licenses>
 
     <scm>
-        <connection>scm:svn:https://svn.st.cs.uni-saarland.de/svn/st/projects/java-slicer/trunk/java-slicer</connection>
-        <developerConnection>scm:svn:https://svn.st.cs.uni-saarland.de/svn/st/projects/java-slicer/trunk/java-slicer</developerConnection>
-        <url>https://svn.st.cs.uni-saarland.de/svn/st/projects/java-slicer/trunk/java-slicer</url>
+        <url>https://github.com/hammacher/javaslicer</url>
+        <connection>scm:git:git://github.com/hammacher/javaslicer.git</connection>
+        <developerConnection>scm:git:git@github.com:hammacher/javaslicer.git</developerConnection>
     </scm>
 
     <organization>
@@ -210,6 +171,28 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>2.3</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <minimizeJar>false</minimizeJar>
+                            <relocations>
+                                <relocation>
+                                    <pattern>org.objectweb.asm</pattern>
+                                    <shadedPattern>de.unisb.cs.st.javaslicer.org.objectweb.asm</shadedPattern>
+                                </relocation>
+                            </relocations>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-eclipse-plugin</artifactId>

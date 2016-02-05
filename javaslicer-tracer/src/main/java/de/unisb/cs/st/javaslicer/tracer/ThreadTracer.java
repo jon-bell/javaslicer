@@ -52,5 +52,9 @@ public interface ThreadTracer {
     // this is necessary because we cannot use the allocated but uninitialized object!
     void objectAllocated(int traceSequenceNr);
     void objectInitialized(Object obj);
-
+    
+    /**
+     * Returns the number of instructions that have been logged thus far
+     */
+    int getInsnsExecuted();
 }
