@@ -58,6 +58,11 @@ public class AbstractInstructionInstance implements InstructionInstance {
     }
 
     @Override
+    public int getId() {
+    	return this.id;
+    }
+    
+    @Override
 	public long getOccurrenceNumber() {
         return this.occurenceNumber;
     }

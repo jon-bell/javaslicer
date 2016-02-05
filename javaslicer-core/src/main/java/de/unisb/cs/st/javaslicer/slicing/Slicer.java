@@ -171,13 +171,25 @@ public class Slicer {
         }
 
         List<SlicingCriterion> sc = null;
-        try {
-            sc = StaticSlicingCriterion.parseAll(slicingCriterionString, trace.getReadClasses());
-        } catch (IllegalArgumentException e) {
-            System.err.println("Error parsing slicing criterion: " + e.getMessage());
-            System.exit(-1);
-            return;
+        //currently it only supports one or the other, not both static and dynamic
+        if (cmdLine.hasOption("dynSlId")) {
+	        try {
+	            sc = DynamicSlicingCriterion.parseAll(slicingCriterionString);
+	        } catch (IllegalArgumentException e) {
+	            System.err.println("Error parsing slicing criterion: " + e.getMessage());
+	            System.exit(-1);
+	            return;
+	        }
+        } else {
+	        try {
+	            sc = StaticSlicingCriterion.parseAll(slicingCriterionString, trace.getReadClasses());
+	        } catch (IllegalArgumentException e) {
+	            System.err.println("Error parsing slicing criterion: " + e.getMessage());
+	            System.exit(-1);
+	            return;
+	        }
         }
+        
 
         List<ThreadId> threads = trace.getThreads();
         if (threads.size() == 0) {
@@ -520,8 +532,10 @@ public class Slicer {
     @SuppressWarnings("static-access")
     private static Options createOptions() {
         Options options = new Options();
+        options.addOption(OptionBuilder.isRequired(false).withArgName("dynSlId").hasArg(false).
+                withDescription("mark that you are passing dynamic id instead of static slicing criterion").withLongOpt("dynSlId").create('d'));
         options.addOption(OptionBuilder.isRequired(false).withArgName("threadid").hasArg(true).
-            withDescription("thread id to select for slicing (default: main thread)").withLongOpt("threadid").create('t'));
+                withDescription("thread id to select for slicing (default: main thread)").withLongOpt("threadid").create('t'));
         options.addOption(OptionBuilder.isRequired(false).hasArg(false).
             withDescription("show progress while computing the dynamic slice").withLongOpt("progress").create('p'));
         options.addOption(OptionBuilder.isRequired(false).hasArg(false).
