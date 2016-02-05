@@ -28,16 +28,17 @@ public class IdSlicingCriterion implements SlicingCriterionInstance{
 		return false;
 	}
 
-	@Override
-	public boolean matchAllData() {
-		// TODO Auto-generated method stub
-		return false;
-	}
 
 	@Override
 	public long getOccurenceNumber() {
 		// TODO Auto-generated method stub
 		return 0;
+	}
+
+	@Override
+	public boolean computeTransitiveClosure() {
+		// TODO Auto-generated method stub
+		return false;
 	}
 
 }
