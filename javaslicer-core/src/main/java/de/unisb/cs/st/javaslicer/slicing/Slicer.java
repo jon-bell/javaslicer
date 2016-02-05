@@ -201,11 +201,6 @@ public class Slicer {
             System.exit(-1);
             return;
         }
-
-        if (cmdLine.hasOption("isolate")) {
-        	System.err.println("Transforming trace to isolate tests.");
-        	trace = new TraceTestIsolatorTransformer(trace).transform();
-        }
         
         long startTime = System.nanoTime();
         Slicer slicer = new Slicer(trace);
