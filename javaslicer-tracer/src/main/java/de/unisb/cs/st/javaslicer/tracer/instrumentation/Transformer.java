@@ -196,6 +196,10 @@ public class Transformer implements ClassFileTransformer {
         if (javaClassName.startsWith("de.unisb.cs.st.sequitur"))
             return true;
 
+        if(javaClassName.startsWith("edu.columbia.cs.psl.phosphor"))
+        	return true;
+        if(javaClassName.startsWith("edu.columbia.cs.psl.testdepends") && !javaClassName.equals("edu.columbia.cs.psl.testdepends.DependencyInfo"))
+        	return true;
         //////////////////////////////////////////////////////////////////
         // NOTE: these will be cleaned up when the system runs stable
         //////////////////////////////////////////////////////////////////
