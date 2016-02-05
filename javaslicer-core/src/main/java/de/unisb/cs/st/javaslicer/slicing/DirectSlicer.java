@@ -34,8 +34,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -258,8 +258,6 @@ public class DirectSlicer implements Opcodes {
         for (ProgressMonitor mon : this.progressMonitors)
             mon.start(backwardInsnItr);
         try {
-            @SuppressWarnings("unchecked")
-            Set<Variable>[] matchedCriterionVariables = (Set<Variable>[]) new Set<?>[8];
 
             while (backwardInsnItr.hasNext()) {
                 InstructionInstance instance = backwardInsnItr.next();
@@ -295,8 +293,10 @@ public class DirectSlicer implements Opcodes {
                             	cachedStackEntries[i] = new StackEntry[8];
                             	cachedLocalVariables[i] = new LocalVariable[8];
                             }
-                			simEnv = new SimulationEnvironment(frames, opStack, minOpStack,
-                				cachedStackEntries, cachedLocalVariables, throwsException, lastInstruction, method, interruptedControlFlow);
+                            simEnv.reallocate(frames, opStack, minOpStack,
+                                cachedStackEntries, cachedLocalVariables,
+                                throwsException, lastInstruction, method,
+                                interruptedControlFlow);
                         }
                         frames[newStackDepth] = nextFrameNr++;
                         method[newStackDepth] = instruction.getMethod();
@@ -344,15 +344,10 @@ public class DirectSlicer implements Opcodes {
                     interestingInstructions[stackDepth].add(instruction);
                 }
 
-                if (matchedCriterionVariables.length <= stackDepth)
-                	matchedCriterionVariables = Arrays.copyOf(matchedCriterionVariables, 2*Math.max(stackDepth, matchedCriterionVariables.length));
                 for (SlicingCriterionInstance crit : slicingCriteria) {
                     if (crit.matches(instance)) {
-                        if (matchedCriterionVariables[stackDepth] == null)
-                            matchedCriterionVariables[stackDepth] = new HashSet<Variable>();
-                        if (crit.matchAllData()) {
-                            matchedCriterionVariables[stackDepth].removeAll(dynInfo.getDefinedVariables());
-                            matchedCriterionVariables[stackDepth].addAll(dynInfo.getUsedVariables());
+                        if (crit.computeTransitiveClosure()) {
+                            interestingVariables.addAll(dynInfo.getUsedVariables());
                             dynamicSlice.add(instruction);
                             interestingInstructions[stackDepth].add(instance.getInstruction());
                         } else if (crit.hasLocalVariables()) {
@@ -360,11 +355,7 @@ public class DirectSlicer implements Opcodes {
                                 interestingVariables.add(simEnv.getLocalVariable(stackDepth, var.getIndex()));
                         } else {
                             interestingInstructions[stackDepth].add(instance.getInstruction());
-                            dynamicSlice.add(instruction);
                         }
-                    } else if (matchedCriterionVariables[stackDepth] != null) {
-                        interestingVariables.addAll(matchedCriterionVariables[stackDepth]);
-                        matchedCriterionVariables[stackDepth] = null;
                     }
                 }
 
