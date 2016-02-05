@@ -153,8 +153,9 @@ public class BackwardTraceIterator<InstanceType extends InstructionInstance>
                 // info: the return statements opcodes lie between 172 (IRETURN) and 177 (RETURN)
                 this.stackDepth = ++tmpStackDepth;
             }
+            //TODO Add index in the stream of instructions
             final InstanceType instance = backwardInstruction.getNextInstance(this, tmpStackDepth,
-                this.instancesCount, this.instanceFactory);
+                this.instancesCount, this.instanceFactory, index);
             assert instance != null;
 
             ++this.instancesCount;

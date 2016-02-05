@@ -50,6 +50,7 @@ import org.objectweb.asm.Opcodes;
 import de.hammacher.util.maps.IntegerMap;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.AbstractInstructionInstance;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.Instruction;
+import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionInstance;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionInstanceFactory;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionInstanceInfo;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionType;
@@ -95,8 +96,8 @@ public class Slicer {
 
         public SlicerInstance(AbstractInstruction instr, long occurenceNumber,
                 int stackDepth, long instanceNr,
-                InstructionInstanceInfo additionalInfo) {
-            super(instr, occurenceNumber, stackDepth, instanceNr, additionalInfo);
+                InstructionInstanceInfo additionalInfo, int id) {
+            super(instr, occurenceNumber, stackDepth, instanceNr, additionalInfo, id);
             this.criterionDistance = Integer.MAX_VALUE;
         }
 
@@ -110,8 +111,8 @@ public class Slicer {
 		public SlicerInstance createInstructionInstance(
                 AbstractInstruction instruction, long occurenceNumber,
                 int stackDepth, long instanceNr,
-                InstructionInstanceInfo additionalInfo) {
-            return new SlicerInstance(instruction, occurenceNumber, stackDepth, instanceNr, additionalInfo);
+                InstructionInstanceInfo additionalInfo, int id) {
+            return new SlicerInstance(instruction, occurenceNumber, stackDepth, instanceNr, additionalInfo, id);
         }
 
     }
@@ -201,6 +202,11 @@ public class Slicer {
             return;
         }
 
+        if (cmdLine.hasOption("isolate")) {
+        	System.err.println("Transforming trace to isolate tests.");
+        	trace = new TraceTestIsolatorTransformer(trace).transform();
+        }
+        
         long startTime = System.nanoTime();
         Slicer slicer = new Slicer(trace);
         if (cmdLine.hasOption("progress"))
@@ -220,18 +226,18 @@ public class Slicer {
         if (warnUntracedMethods)
             slicer.addUntracedCallVisitor(new PrintUniqueUntracedMethods());
         slicer.process(tracing, sc, multithreaded);
-        Set<Instruction> slice = collector.getDynamicSlice();
+        Set<InstructionInstance> slice = collector.getDynamicSliceInstances();
         long endTime = System.nanoTime();
 
-        Instruction[] sliceArray = slice.toArray(new Instruction[slice.size()]);
+        InstructionInstance[] sliceArray = slice.toArray(new InstructionInstance[slice.size()]);
         Arrays.sort(sliceArray);
 
         System.out.println("The dynamic slice for criterion " + sc + ":");
-        for (Instruction insn: sliceArray) {
-            System.out.format((Locale)null, "%s.%s:%d %s%n",
-                    insn.getMethod().getReadClass().getName(),
-                    insn.getMethod().getName(),
-                    insn.getLineNumber(),
+        for (InstructionInstance insn: sliceArray) {
+            System.out.format((Locale)null, "%s.%s:%d %s\n",
+                    insn.getInstruction().getMethod().getReadClass().getName(),
+                    insn.getInstruction().getMethod().getName(),
+                    insn.getInstruction().getLineNumber(),
                     insn.toString());
         }
         System.out.format((Locale)null, "%nSlice consists of %d bytecode instructions.%n", sliceArray.length);
