@@ -44,6 +44,7 @@ import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionInstance;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionInstanceFactory;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadMethod;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.TraceIterator;
+import de.unisb.cs.st.javaslicer.common.classRepresentation.instructions.AbstractInstruction;
 import de.unisb.cs.st.javaslicer.common.exceptions.TracerException;
 import de.unisb.cs.st.javaslicer.common.progress.ProgressInformationProvider;
 import de.unisb.cs.st.javaslicer.traceResult.traceSequences.ConstantTraceSequence;
@@ -154,8 +155,12 @@ public class BackwardTraceIterator<InstanceType extends InstructionInstance>
                 this.stackDepth = ++tmpStackDepth;
             }
             //TODO Add index in the stream of instructions
+            if (!(backwardInstruction instanceof AbstractInstruction)) {
+            	throw new RuntimeException("The instruction should be an AbstractInstruction! (edu.*)");
+            }
+            AbstractInstruction abstractInstr = (AbstractInstruction)backwardInstruction;
             final InstanceType instance = backwardInstruction.getNextInstance(this, tmpStackDepth,
-                this.instancesCount, this.instanceFactory, index);
+                this.instancesCount, this.instanceFactory, abstractInstr.getIndex());
             assert instance != null;
 
             ++this.instancesCount;
