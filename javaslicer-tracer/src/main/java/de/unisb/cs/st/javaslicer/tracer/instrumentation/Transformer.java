@@ -22,6 +22,8 @@
  */
 package de.unisb.cs.st.javaslicer.tracer.instrumentation;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
@@ -276,6 +278,19 @@ public class Transformer implements ClassFileTransformer {
 
         final byte[] newClassfileBuffer = writer.toByteArray();
 
+        if (this.tracer.debug) {
+            File debugDir = new File("debug-tr");
+            if (!debugDir.exists())
+                debugDir.mkdir();
+            File f = new File("debug-tr/" + className.replace("/", ".") + ".class");
+            try {
+                FileOutputStream fos = new FileOutputStream(f);
+                fos.write(newClassfileBuffer);
+                fos.close();
+            } catch (Throwable t) {
+                t.printStackTrace();
+            }
+        }
         if (this.tracer.check) {
             checkClass(newClassfileBuffer, className, classfileBuffer);
         }
