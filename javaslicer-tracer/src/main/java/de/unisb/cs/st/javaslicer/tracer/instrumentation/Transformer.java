@@ -168,7 +168,7 @@ public class Transformer implements ClassFileTransformer {
             return true;
         
         //Start: add jon
-        if(javaClassName.startsWith("org.apache.maven"))
+        if(javaClassName.startsWith("org.apache.maven") && !javaClassName.equals("org.apache.maven.surefire.booter.ForkedBooter"))
             return true;
         if(javaClassName.startsWith("edu.columbia.cs.psl.testdepends") && !javaClassName.equals("edu.columbia.cs.psl.testdepends.DependencyInfo"))
             return true;
