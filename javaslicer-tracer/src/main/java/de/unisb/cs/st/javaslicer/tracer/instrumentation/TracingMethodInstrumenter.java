@@ -164,7 +164,7 @@ public class TracingMethodInstrumenter implements Opcodes {
      * An instruction is safe if it is assured that the following instruction is always executed,
      * so there is no jump and no exception.
      */
-    private static enum InstructionType { METHODENTRY, METHODEXIT, SAFE, UNSAFE }
+    private static enum InstructionType { METHODENTRY, METHODEXIT, SAFE, UNSAFE, LAZYUNSAFE }
 
     private final Tracer tracer;
     private final ReadMethod readMethod;
@@ -723,7 +723,7 @@ public class TracingMethodInstrumenter implements Opcodes {
 
         // array load:
         case IALOAD: case LALOAD: case FALOAD: case DALOAD: case AALOAD: case BALOAD: case CALOAD: case SALOAD:
-            type = InstructionType.UNSAFE;
+            type = InstructionType.LAZYUNSAFE;
             // to trace array manipulations, we need two traces: one for the array, one for the index
             arrayTraceSeqIndex = this.tracer.newLongTraceSequence();
             indexTraceSeqIndex = this.tracer.newIntegerTraceSequence();
@@ -1160,6 +1160,8 @@ public class TracingMethodInstrumenter implements Opcodes {
             case UNSAFE:
                 methodName = "passInstruction";
                 break;
+            case LAZYUNSAFE:
+                throw new UnsupportedOperationException();
             case SAFE:
                 if (TracingThreadTracer.DEBUG_TRACE_FILE || followedByJumpLabel(this.instructionIterator))
                     methodName = "passInstruction";
@@ -1190,6 +1192,11 @@ public class TracingMethodInstrumenter implements Opcodes {
         case UNSAFE:
             methodName = "passInstruction";
             break;
+        case LAZYUNSAFE:
+            this.instructionIterator.previous();
+            this.instructionIterator.add(getIntConstInsn(instruction.getIndex()));
+            this.instructionIterator.add(new InsnNode(Opcodes.POP));
+            this.instructionIterator.next();
         case SAFE:
             if (TracingThreadTracer.DEBUG_TRACE_FILE || followedByJumpLabel(this.instructionIterator))
                 methodName = "passInstruction";

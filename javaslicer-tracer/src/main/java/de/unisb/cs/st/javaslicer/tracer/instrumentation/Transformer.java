@@ -162,6 +162,8 @@ public class Transformer implements ClassFileTransformer {
             return true;
         if (javaClassName.startsWith("de.unisb.cs.st.javaslicer.common."))
             return true;
+        if (javaClassName.startsWith("de.unisb.cs.st.javaslicer.org."))
+            return true;
         if (javaClassName.startsWith("de.hammacher.util."))
             return true;
         if (javaClassName.startsWith("de.unisb.cs.st.sequitur"))
@@ -263,7 +265,9 @@ public class Transformer implements ClassFileTransformer {
             }
 
             new IdentifiableInstrumenter(readClass, this.tracer).transform(classNode);
-
+            
+            new LazyTraceTransformer().transform(classNode);
+            
             long nanosAfterTransformation = System.nanoTime();
             this.totalRawTransformationTime.addAndGet(nanosAfterTransformation - nanosBeforeTransformation);
 
