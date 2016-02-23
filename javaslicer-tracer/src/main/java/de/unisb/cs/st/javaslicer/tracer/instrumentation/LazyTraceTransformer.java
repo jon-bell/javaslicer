@@ -9,14 +9,13 @@ public class LazyTraceTransformer implements Opcodes {
 
     public void transform(ClassNode cn)
     {
-        if(cn.name.equals("java/lang/ArrayIndexOutOfBoundsException"))
+        if(cn.name.equals("java/lang/ArrayIndexOutOfBoundsException") || cn.name.equals("java/lang/NullPointerException") || cn.name.equals("java/lang/ArithmeticException"))
         {
             for(Object o : cn.methods)
             {
                 MethodNode mn = (MethodNode) o;
                 if(mn.name.equals("<init>"))
                 {
-                    System.out.println("Tracing in aioobe");
                     mn.instructions.insert(new MethodInsnNode(INVOKESTATIC, "de/unisb/cs/st/javaslicer/tracer/LazyTraceLocator", "trace1Deep", "()V",false));
                 }
             }
