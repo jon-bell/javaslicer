@@ -1197,6 +1197,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             this.instructionIterator.add(getIntConstInsn(instruction.getIndex()));
             this.instructionIterator.add(new InsnNode(Opcodes.POP));
             this.instructionIterator.next();
+            break;
         case SAFE:
             if (TracingThreadTracer.DEBUG_TRACE_FILE || followedByJumpLabel(this.instructionIterator))
                 methodName = "passInstruction";
