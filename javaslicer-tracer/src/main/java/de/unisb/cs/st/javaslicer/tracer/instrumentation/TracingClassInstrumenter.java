@@ -81,13 +81,6 @@ public class TracingClassInstrumenter implements Opcodes {
         method.maxLocals = 0;
         method.maxStack = 0;
 
-        // do not instrument <clinit> methods (break (linear) control flow)
-        // because these methods may call other methods, we have to pause tracing when they are entered
-        if ("<clinit>".equals(method.name)) {
-            new PauseTracingInstrumenter(null, this.tracer).transformMethod(method, methodIt, this.readClass.getName());
-            return;
-        }
-
         MethodNode oldMethod;
         // only copy the old method if it has more than 2000 instructions
         if (method.instructions.size() > 2000) {
