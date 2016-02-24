@@ -84,6 +84,7 @@ import de.unisb.cs.st.javaslicer.common.classRepresentation.instructions.TableSw
 import de.unisb.cs.st.javaslicer.common.classRepresentation.instructions.TypeInstruction;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.instructions.VarInstruction;
 import de.unisb.cs.st.javaslicer.common.exceptions.TracerException;
+import de.unisb.cs.st.javaslicer.tracer.LazyTraceLocator;
 import de.unisb.cs.st.javaslicer.tracer.ThreadTracer;
 import de.unisb.cs.st.javaslicer.tracer.Tracer;
 import de.unisb.cs.st.javaslicer.tracer.TracingThreadTracer;
@@ -173,6 +174,8 @@ public class TracingMethodInstrumenter implements Opcodes {
 
     private final int tracerLocalVarIndex;
 
+    private boolean catchExits;
+    
     private final Map<LabelNode, LabelMarker> labels =
         new HashMap<LabelNode, LabelMarker>();
 
@@ -695,7 +698,7 @@ public class TracingMethodInstrumenter implements Opcodes {
         }
 
         registerInstruction(new FieldInstruction(this.readMethod, insn.getOpcode(), this.currentLine,
-                insn.owner, insn.name, insn.desc, objectTraceSeqIndex), InstructionType.UNSAFE);
+                insn.owner, insn.name, insn.desc, objectTraceSeqIndex), InstructionType.LAZYUNSAFE);
         if(insn.getOpcode() == GETSTATIC || insn.getOpcode() == PUTSTATIC)
         	traceLabel(null, InstructionType.UNSAFE); //GETSTATIC/PUTSTATIC might cause jump to classloader
     }
@@ -738,7 +741,7 @@ public class TracingMethodInstrumenter implements Opcodes {
 
         // array store:
         case IASTORE: case LASTORE: case FASTORE: case DASTORE: case AASTORE: case BASTORE: case CASTORE: case SASTORE:
-            type = InstructionType.UNSAFE;
+            type = InstructionType.LAZYUNSAFE;
             // to trace array manipulations, we need two traces: one for the array, one for the index
             arrayTraceSeqIndex = this.tracer.newLongTraceSequence();
             indexTraceSeqIndex = this.tracer.newIntegerTraceSequence();
@@ -787,7 +790,7 @@ public class TracingMethodInstrumenter implements Opcodes {
 
         // unsafe arithmetic instructions:
         case IDIV: case LDIV: case IREM: case LREM:
-            type = InstructionType.UNSAFE;
+            type = InstructionType.LAZYUNSAFE;
             break;
 
         // type conversions:
@@ -807,13 +810,16 @@ public class TracingMethodInstrumenter implements Opcodes {
             break;
 
         // special things
-        case ARRAYLENGTH: case ATHROW: case MONITORENTER: case MONITOREXIT:
+        case ARRAYLENGTH: 
+            type = InstructionType.LAZYUNSAFE;
+            break;
+            
+        case ATHROW: case MONITORENTER: case MONITOREXIT:
             type = InstructionType.UNSAFE;
             break;
 
         default:
-            type = InstructionType.UNSAFE;
-            assert false;
+            throw new UnsupportedOperationException("Invalid opcode: " + insn.getOpcode());
         }
 
         if (arrayTraceSeqIndex != -1) {
@@ -837,6 +843,11 @@ public class TracingMethodInstrumenter implements Opcodes {
         } else {
             assert indexTraceSeqIndex == -1;
             registerInstruction(new SimpleInstruction(this.readMethod, insn.getOpcode(), this.currentLine), type);
+        }
+        if(type == InstructionType.METHODEXIT && catchExits)
+        {
+            //TODO - if we ever figure out how to avoid tracign the label sequence each time we pass it, do this
+//            this.instructionIterator.add(new MethodInsnNode(Opcodes.INVOKESTATIC, Type.getInternalName(LazyTraceLocator.class), "traceLabel1Deep", "()V", false));
         }
     }
 
@@ -891,7 +902,7 @@ public class TracingMethodInstrumenter implements Opcodes {
 
     private void transformLdcInsn(final LdcInsnNode insn) {
         registerInstruction(new LdcInstruction(this.readMethod, this.currentLine, insn.cst),
-                insn.cst instanceof Number ? InstructionType.SAFE : InstructionType.UNSAFE);
+                insn.cst instanceof Number ? InstructionType.SAFE : InstructionType.LAZYUNSAFE);
         if(!(insn.cst instanceof Number))
         	traceLabel(null, InstructionType.UNSAFE);        
     }
@@ -1006,7 +1017,7 @@ public class TracingMethodInstrumenter implements Opcodes {
             final int newObjectIdSeqIndex = this.tracer.newLongTraceSequence();
             final AbstractInstruction instruction = new TypeInstruction(this.readMethod, insn.getOpcode(),
                 this.currentLine, insn.desc, newObjectIdSeqIndex);
-            registerInstruction(instruction, InstructionType.UNSAFE); //NEW might cause a jump to classloader
+            registerInstruction(instruction, InstructionType.LAZYUNSAFE); //NEW might cause a jump to classloader
             if (!this.instructionIterator.hasNext()) {
 //                if (this.tracer.debug)
                     Transformer.printMethod(System.err, this.methodNode);
@@ -1084,7 +1095,7 @@ public class TracingMethodInstrumenter implements Opcodes {
                 this.instructionIterator.add(new InsnNode(DUP));
             }
             ++this.outstandingInitializations;
-            traceLabel(null, InstructionType.UNSAFE); //To catch return from NEW possibly
+            traceLabel(null, InstructionType.LAZYUNSAFE); //To catch return from NEW possibly
 
             // modified code of registerInstruction():
             this.instructionIterator.previous();
@@ -1097,7 +1108,7 @@ public class TracingMethodInstrumenter implements Opcodes {
         } else {
             registerInstruction(new TypeInstruction(this.readMethod, insn.getOpcode(), this.currentLine,
                 insn.desc, -1),
-                InstructionType.UNSAFE);
+                InstructionType.LAZYUNSAFE);
             traceLabel(null, InstructionType.UNSAFE);
         }
     }
@@ -1134,7 +1145,7 @@ public class TracingMethodInstrumenter implements Opcodes {
                     isCatchBlock, labelNr);
             if (!isAdditionalLabel)
                 this.labels.put(label, lm);
-
+            
             // at runtime: push sequence index on the stack and call method to trace last executed instruction
             this.instructionIterator.add(new VarInsnNode(ALOAD, this.tracerLocalVarIndex));
             this.instructionIterator.add(getIntConstInsn(lm.getTraceSeqIndex()));
@@ -1157,11 +1168,10 @@ public class TracingMethodInstrumenter implements Opcodes {
             case METHODEXIT:
                 methodName = "leaveMethod";
                 break;
+            case LAZYUNSAFE:
             case UNSAFE:
                 methodName = "passInstruction";
                 break;
-            case LAZYUNSAFE:
-                throw new UnsupportedOperationException();
             case SAFE:
                 if (TracingThreadTracer.DEBUG_TRACE_FILE || followedByJumpLabel(this.instructionIterator))
                     methodName = "passInstruction";

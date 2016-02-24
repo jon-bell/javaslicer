@@ -19,7 +19,6 @@ typedef struct {
 	JavaVM* jvm;
 } GlobalAgentData;
 
-
 static jvmtiEnv *jvmti = NULL;
 static jvmtiCapabilities capa;
 static GlobalAgentData *gdata;
@@ -93,10 +92,9 @@ static int readInt(unsigned char * b, int index) {
 			| ((b[index + 2] & 0xFF) << 8) | (b[index + 3] & 0xFF);
 }
 static int readUnsignedShort(unsigned char * b, int index) {
-    return ((b[index] & 0xFF) << 8) | (b[index + 1] & 0xFF);
+	return ((b[index] & 0xFF) << 8) | (b[index + 1] & 0xFF);
 }
-static int getIntFromCPool(int idxToCpool, unsigned char * cpool)
-{
+static int getIntFromCPool(int idxToCpool, unsigned char * cpool) {
 	int v = 0;
 	int strlen = 0;
 	int idx = 1;
@@ -134,8 +132,8 @@ static int JNICALL getTraceLocation(JNIEnv *env, jobject obj, jint depth) {
 	jvmtiFrameInfo frames[depth + 1];
 	jint count;
 	jvmtiError err;
-	char *methodName;
-	char *methodDesc;
+//	char *methodName;
+//	char *methodDesc;
 	unsigned char *bytecodes;
 	jclass declaringClass;
 	jint nBytecodes;
@@ -154,6 +152,9 @@ static int JNICALL getTraceLocation(JNIEnv *env, jobject obj, jint depth) {
 
 	err = gdata->jvmti->GetStackTrace(NULL, 2, depth + 1, frames, &count);
 	check_jvmti_error(jvmti, err, "Cant get stack trace");
+
+	if(count <= depth) //eg class init that came from JVM internal
+		return -1;
 
 //	err = jvmti->GetMethodName(frames[depth].method, &methodName, &methodDesc, NULL);
 //	check_jvmti_error(jvmti, err, "Can't retrieve method name");
@@ -191,13 +192,14 @@ static int JNICALL getTraceLocation(JNIEnv *env, jobject obj, jint depth) {
 			len = _opcode_length[opcode];
 			if (u + len == frames[depth].location - 1) {
 				if (opcode == JVM_OPC_ldc) {
-					ret = getIntFromCPool(bytecodes[u + 1] & 0xFF,cpool);
+					ret = getIntFromCPool(bytecodes[u + 1] & 0xFF, cpool);
 				} else if (opcode == JVM_OPC_ldc_w) {
-					ret = getIntFromCPool(readUnsignedShort(bytecodes, u + 1),cpool);
+					ret = getIntFromCPool(readUnsignedShort(bytecodes, u + 1),
+							cpool);
 				} else if (opcode == JVM_OPC_sipush) {
 					ret = readUnsignedShort(bytecodes, u + 1);
 				} else if (opcode == JVM_OPC_bipush) {
-					ret = bytecodes[u+1] & 0xff;
+					ret = bytecodes[u + 1] & 0xff;
 				} else if (opcode == JVM_OPC_iconst_0)
 					ret = 0;
 				else if (opcode == JVM_OPC_iconst_1)
@@ -223,6 +225,129 @@ static int JNICALL getTraceLocation(JNIEnv *env, jobject obj, jint depth) {
 
 	return ret;
 }
+static jlong JNICALL getLabelLocation(JNIEnv *env, jobject obj, jint depth) {
+	jvmtiFrameInfo frames[depth + 1];
+	jint count;
+	jvmtiError err;
+//	char *methodName;
+//	char *methodDesc;
+	unsigned char *bytecodes;
+	jclass declaringClass;
+	jint nBytecodes;
+	jint bci;
+	jint cpoolSize;
+	jint cpoolBCSize;
+	int u = 0;
+	int opcode;
+	int len;
+	int i;
+	int ret = -1;
+	int ret2 = 0;
+	int v;
+
+	unsigned char * cpool;
+	static unsigned char _opcode_length[JVM_OPC_MAX + 1] =
+	JVM_OPCODE_LENGTH_INITIALIZER;
+
+	err = gdata->jvmti->GetStackTrace(NULL, 2, depth + 1, frames, &count);
+	check_jvmti_error(jvmti, err, "Cant get stack trace");
+//	printf("method %d, %d, %lld\n", count, depth, frames[depth].method);
+//	err = jvmti->GetMethodName(frames[depth].method, &methodName, &methodDesc,
+//			NULL);
+//	check_jvmti_error(jvmti, err, "Can't retrieve method name");
+//	err = jvmti->GetMethodDeclaringClass(frames[depth].method, &declaringClass);
+	check_jvmti_error(jvmti, err, "Can't retrieve method Class");
+	err = jvmti->GetBytecodes(frames[depth].method, &nBytecodes, &bytecodes);
+	check_jvmti_error(jvmti, err, "Can't retrieve method bytecodes");
+	err = jvmti->GetConstantPool(declaringClass, &cpoolSize, &cpoolBCSize,
+			&cpool);
+	check_jvmti_error(jvmti, err, "Can't retrieve class constant pool");
+
+	//now read up to this instruction
+
+	while (u <= frames[depth].location) {
+		v = u;
+		opcode = bytecodes[u];
+		if (opcode > JVM_OPC_MAX) {
+			fatal_error("Invalid opcode");
+		}
+		if (opcode == JVM_OPC_tableswitch) {
+			u = u + 4 - (u & 3);
+			for (int i = readInt(bytecodes, u + 8) - readInt(bytecodes, u + 4)
+					+ 1; i > 0; --i) {
+				u += 4;
+			}
+			u += 12;
+		} else if (opcode == JVM_OPC_lookupswitch) {
+			// skips 0 to 3 padding bytes
+			u = u + 4 - (u & 3);
+			// reads instruction
+			for (int i = readInt(bytecodes, u + 4); i > 0; --i) {
+				u += 8;
+			}
+			u += 8;
+		} else {
+			len = _opcode_length[opcode];
+			u += len;
+		}
+		if (v == frames[depth].location) {
+			opcode = bytecodes[u];
+			len = _opcode_length[opcode];
+			if (opcode == JVM_OPC_ldc) {
+				ret = getIntFromCPool(bytecodes[u + 1] & 0xFF, cpool);
+			} else if (opcode == JVM_OPC_ldc_w) {
+				ret = getIntFromCPool(readUnsignedShort(bytecodes, u + 1),
+						cpool);
+			} else if (opcode == JVM_OPC_sipush) {
+				ret = readUnsignedShort(bytecodes, u + 1);
+			} else if (opcode == JVM_OPC_bipush) {
+				ret = bytecodes[u + 1] & 0xff;
+			} else if (opcode == JVM_OPC_iconst_0)
+				ret = 0;
+			else if (opcode == JVM_OPC_iconst_1)
+				ret = 1;
+			else if (opcode == JVM_OPC_iconst_2)
+				ret = 2;
+			else if (opcode == JVM_OPC_iconst_3)
+				ret = 3;
+			else if (opcode == JVM_OPC_iconst_4)
+				ret = 4;
+			else if (opcode == JVM_OPC_iconst_5)
+				ret = 5;
+
+			u += len;
+			opcode = bytecodes[u];
+			if (opcode == JVM_OPC_ldc) {
+				ret2 = getIntFromCPool(bytecodes[u + 1] & 0xFF, cpool);
+			} else if (opcode == JVM_OPC_ldc_w) {
+				ret2 = getIntFromCPool(readUnsignedShort(bytecodes, u + 1),
+						cpool);
+			} else if (opcode == JVM_OPC_sipush) {
+				ret2 = readUnsignedShort(bytecodes, u + 1);
+			} else if (opcode == JVM_OPC_bipush) {
+				ret2 = bytecodes[u + 1] & 0xff;
+			} else if (opcode == JVM_OPC_iconst_0)
+				ret2 = 0;
+			else if (opcode == JVM_OPC_iconst_1)
+				ret2 = 1;
+			else if (opcode == JVM_OPC_iconst_2)
+				ret2 = 2;
+			else if (opcode == JVM_OPC_iconst_3)
+				ret2 = 3;
+			else if (opcode == JVM_OPC_iconst_4)
+				ret2 = 4;
+			else if (opcode == JVM_OPC_iconst_5)
+				ret2 = 5;
+		}
+	}
+//	printf("Location %s %s bci %d -> %d %d\n", methodName, methodDesc,
+//			frames[depth].location, ret, ret2);
+
+	jvmti->Deallocate(bytecodes);
+//	jvmti->Deallocate(methodName);
+//	jvmti->Deallocate(methodDesc);
+	return (((long)ret) << 32) | (ret2 & 0xffffffffL);;
+}
 
 /* Callback for JVMTI_EVENT_VM_START */
 static void JNICALL
@@ -236,8 +361,9 @@ cbVMStart(jvmtiEnv *jvmti, JNIEnv *env) {
 		jvmtiJlocationFormat fmt;
 
 		/* Java Native Methods for class */
-		static JNINativeMethod registry[1] = { { "_getTraceLocation", "(I)I",
-				(void*) &getTraceLocation } };
+		static JNINativeMethod registry[2] = { { "_getTraceLocation", "(I)I",
+				(void*) &getTraceLocation }, { "_getLabelLocation", "(I)J",
+				(void*) &getLabelLocation } };
 		/* Register Natives for class whose methods we use */
 		klass = env->FindClass(
 				"de/unisb/cs/st/javaslicer/tracer/LazyTraceLocator");
@@ -245,7 +371,7 @@ cbVMStart(jvmtiEnv *jvmti, JNIEnv *env) {
 			fatal_error(
 					"ERROR: JNI: Cannot find de.unisb.cs.st.javaslicer.tracer.LazyTraceLocator with FindClass\n");
 		}
-		rc = env->RegisterNatives(klass, registry, 1);
+		rc = env->RegisterNatives(klass, registry, 2);
 		if (rc != 0) {
 			fatal_error(
 					"ERROR: JNI: Cannot register natives for class de.unisb.cs.st.javaslicer.tracer.LazyTraceLocator\n");
@@ -324,7 +450,6 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options,
 	callbacks.VMInit = &callbackVMInit; /* JVMTI_EVENT_VM_INIT */
 	callbacks.VMDeath = &callbackVMDeath; /* JVMTI_EVENT_VM_DEATH */
 	callbacks.VMStart = &cbVMStart;
-
 
 	error = jvmti->SetEventCallbacks(&callbacks, (jint) sizeof(callbacks));
 	check_jvmti_error(jvmti, error, "Cannot set jvmti callbacks");
