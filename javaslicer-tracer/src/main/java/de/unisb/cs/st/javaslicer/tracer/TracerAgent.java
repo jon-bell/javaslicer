@@ -98,7 +98,8 @@ public class TracerAgent {
             boolean debug = false;
             boolean check = false;
             TraceSequenceFactory seqFac = null;
-            
+
+            boolean mtOrdering = false;
             boolean appendTestName = false;
             for (final String arg : args) {
                 final int colonPos = arg.indexOf(':');
@@ -153,6 +154,9 @@ public class TracerAgent {
 					appendTestName = true;
 				} else if("ignoreBootPath".equalsIgnoreCase(key)){
 					
+				} else if("mt".equalsIgnoreCase(key))
+				{
+				    mtOrdering = true;
 				}
 				else {
                     System.err.println("Unknown argument: " + key);
@@ -197,7 +201,7 @@ public class TracerAgent {
                 seqFac = new UncompressedTraceSequenceFactory();
 
             try {
-                Tracer.newInstance(logFile, debug, check, seqFac, inst);
+                Tracer.newInstance(logFile, debug, check, seqFac, inst, mtOrdering);
             } catch (final FileNotFoundException e) {
                 System.err.println("ERROR: cannot create trace file: " + e.getMessage());
             }

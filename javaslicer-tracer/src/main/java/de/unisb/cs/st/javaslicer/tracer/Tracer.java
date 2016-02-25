@@ -58,6 +58,8 @@ import de.unisb.cs.st.javaslicer.common.exceptions.TracerException;
 import de.unisb.cs.st.javaslicer.common.util.UntracedArrayList;
 import de.unisb.cs.st.javaslicer.tracer.instrumentation.TracingMethodInstrumenter;
 import de.unisb.cs.st.javaslicer.tracer.instrumentation.Transformer;
+import de.unisb.cs.st.javaslicer.tracer.mt.ObjectAccessLog;
+import de.unisb.cs.st.javaslicer.tracer.mt.SFAccess;
 import de.unisb.cs.st.javaslicer.tracer.traceSequences.ObjectIdentifier;
 import de.unisb.cs.st.javaslicer.tracer.traceSequences.TraceSequenceFactory;
 
@@ -112,13 +114,22 @@ public class Tracer {
     private String lastErrorString;
 
     private final Transformer transformer;
+    
+    private final boolean mtOrdering;
 
-
+    private final LinkedList<ObjectAccessLog> accessedObjects;
+    
     private Tracer(final File filename, final boolean debug, final boolean check,
-            final TraceSequenceFactory seqFac, final Instrumentation instrumentation) throws IOException {
+            final TraceSequenceFactory seqFac, final Instrumentation instrumentation, boolean mtOrdering) throws IOException {
         this.debug = debug;
         this.check = check;
         this.seqFactory = seqFac;
+        this.mtOrdering = mtOrdering;
+        if(mtOrdering)
+            accessedObjects = new LinkedList<ObjectAccessLog>();
+        else
+            accessedObjects = null;
+        
         this.transformer = new Transformer(this, instrumentation, this.readClasses, this.notRedefinedClasses);
         this.file = new MultiplexedFileWriter(filename, 512, MultiplexedFileWriter.is64bitVM,
                 ByteOrder.nativeOrder(), seqFac.shouldAutoFlushFile());
@@ -163,10 +174,10 @@ public class Tracer {
     }
 
     public static void newInstance(final File filename, final boolean debug, final boolean check,
-            final TraceSequenceFactory seqFac, final Instrumentation instrumentation) throws IOException {
+            final TraceSequenceFactory seqFac, final Instrumentation instrumentation, boolean mtOrdering) throws IOException {
         if (instance != null)
             throw new IllegalStateException("Tracer instance already exists");
-        instance = new Tracer(filename, debug, check, seqFac, instrumentation);
+        instance = new Tracer(filename, debug, check, seqFac, instrumentation, mtOrdering);
     }
 
     public static Tracer getInstance() {
@@ -426,6 +437,22 @@ public class Tracer {
                 rc.writeOut(this.readClassesOutputStream, this.readClassesStringCache);
             this.readClassesOutputStream.close();
             this.file.close();
+            
+            if (this.isMultiThreadedSafe()) {
+                System.err.println("And now for the thread conflicts:");
+                for (ObjectAccessLog a : accessedObjects) {
+                    if(a.conflict())
+                    {
+                        System.out.println(a);
+                        de.unisb.cs.st.javaslicer.tracer.mt.LinkedList.Node<SFAccess> acc = a.getAccessedSFs().getFirst();
+                        while(acc != null)
+                        {
+                            System.out.println(acc.entry);
+                            acc = acc.next;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -459,4 +486,13 @@ public class Tracer {
         return !this.notRedefinedClasses.contains(className);
     }
 
+    public boolean isMultiThreadedSafe()
+    {
+        return mtOrdering;
+    }
+    
+    public void addObjectAccessLog(ObjectAccessLog l)
+    {
+        this.accessedObjects.add(l);
+    }
 }

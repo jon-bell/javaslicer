@@ -38,13 +38,18 @@ import org.objectweb.asm.tree.VarInsnNode;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadClass;
 import de.unisb.cs.st.javaslicer.tracer.ThreadTracer;
 import de.unisb.cs.st.javaslicer.tracer.Tracer;
+import de.unisb.cs.st.javaslicer.tracer.mt.ObjectAccessLog;
 import de.unisb.cs.st.javaslicer.tracer.traceSequences.Identifiable;
+import de.unisb.cs.st.javaslicer.tracer.traceSequences.IdentifiableSharedObject;
 import de.unisb.cs.st.javaslicer.tracer.traceSequences.ObjectIdentifier;
 
 public class IdentifiableInstrumenter implements Opcodes {
 
     private static final String ID_FIELD_NAME = "__tracing_object_id";
 
+    private static final String ID_FIELD_MT_NAME = "__tracing_object_id";
+
+    
     private final Tracer tracer;
     private final ReadClass readClass;
 
@@ -132,6 +137,10 @@ public class IdentifiableInstrumenter implements Opcodes {
 
         classNode.methods.add(getIdMethod);
 
+        if(tracer.isMultiThreadedSafe())
+        {
+            transformForMultiThreadLog(classNode);
+        }
         // now, instrument all constructors: initialize object id at the beginning of each constructor
         /*
         for (final Object methodObj: classNode.methods) {
@@ -161,6 +170,70 @@ public class IdentifiableInstrumenter implements Opcodes {
             }
         }
         */
+    }
+    
+    @SuppressWarnings("unchecked")
+    private void transformForMultiThreadLog(ClassNode classNode)
+    {
+        classNode.fields.add(new FieldNode(ACC_PRIVATE | ACC_SYNTHETIC | ACC_TRANSIENT,
+                ID_FIELD_MT_NAME, Type.getDescriptor(ObjectAccessLog.class), null, null));
+
+            classNode.interfaces.add(Type.getInternalName(IdentifiableSharedObject.class));
+
+            final MethodNode getIdMethod = new MethodNode(ACC_PUBLIC | ACC_FINAL | ACC_SYNTHETIC,
+                "$$getJavaSlicerObjectAccessLog", "()"+Type.getDescriptor(ObjectAccessLog.class), null, null);
+            // first, check if the id field is already set:
+            getIdMethod.instructions.add(new VarInsnNode(ALOAD, 0));
+            getIdMethod.instructions.add(new FieldInsnNode(GETFIELD, classNode.name, ID_FIELD_MT_NAME, Type.getDescriptor(ObjectAccessLog.class)));
+            final LabelNode l0 = new LabelNode();
+            getIdMethod.instructions.add(new JumpInsnNode(IFNONNULL, l0));
+
+            // code to be executed if it is not set:
+            // synchronized, so that the id is only set once
+            getIdMethod.instructions.add(new VarInsnNode(ALOAD, 0));
+            getIdMethod.instructions.add(new InsnNode(MONITORENTER));
+            // label for the try-catch block around the synchronized block
+            final LabelNode l1 = new LabelNode(), l2 = new LabelNode(), l3 = new LabelNode();
+            getIdMethod.tryCatchBlocks.add(new TryCatchBlockNode(l1, l2, l3, null));
+            getIdMethod.instructions.add(l1);
+            // recheck if the id is set:
+            getIdMethod.instructions.add(new VarInsnNode(ALOAD, 0));
+            getIdMethod.instructions.add(new FieldInsnNode(GETFIELD, classNode.name, ID_FIELD_MT_NAME, Type.getDescriptor(ObjectAccessLog.class)));
+            getIdMethod.instructions.add(new JumpInsnNode(IFNONNULL, l2));
+
+            // it is still unset:
+            getIdMethod.instructions.add(new MethodInsnNode(INVOKESTATIC, Type.getInternalName(Tracer.class),
+                    "getInstance", "()L"+Type.getInternalName(Tracer.class)+";",false));
+            getIdMethod.instructions.add(new MethodInsnNode(INVOKEVIRTUAL, Type.getInternalName(Tracer.class),
+                    "getThreadTracer", "()L"+Type.getInternalName(ThreadTracer.class)+";", false));
+            getIdMethod.instructions.add(new InsnNode(DUP));
+            getIdMethod.instructions.add(new MethodInsnNode(INVOKEINTERFACE, Type.getInternalName(ThreadTracer.class),
+                    "pauseTracing", "()V", true));
+            getIdMethod.instructions.add(new VarInsnNode(ALOAD, 0));
+            getIdMethod.instructions.add(new InsnNode(DUP));
+            getIdMethod.instructions.add(new MethodInsnNode(INVOKESTATIC,
+                    Type.getInternalName(ObjectAccessLog.class), "getNewId",
+                    "(Ljava/lang/Object;)"+Type.getDescriptor(ObjectAccessLog.class),false));
+            getIdMethod.instructions.add(new FieldInsnNode(PUTFIELD, classNode.name, ID_FIELD_MT_NAME, Type.getDescriptor(ObjectAccessLog.class)));
+            getIdMethod.instructions.add(new MethodInsnNode(INVOKEINTERFACE, Type.getInternalName(ThreadTracer.class),
+                    "resumeTracing", "()V", true));
+
+            getIdMethod.instructions.add(l2);
+            getIdMethod.instructions.add(new VarInsnNode(ALOAD, 0));
+            getIdMethod.instructions.add(new InsnNode(MONITOREXIT));
+            getIdMethod.instructions.add(new JumpInsnNode(GOTO, l0));
+            getIdMethod.instructions.add(l3);
+            getIdMethod.instructions.add(new VarInsnNode(ALOAD, 0));
+            getIdMethod.instructions.add(new InsnNode(MONITOREXIT));
+            getIdMethod.instructions.add(new InsnNode(ATHROW));
+
+
+            getIdMethod.instructions.add(l0);
+            getIdMethod.instructions.add(new VarInsnNode(ALOAD, 0));
+            getIdMethod.instructions.add(new FieldInsnNode(GETFIELD, classNode.name, ID_FIELD_MT_NAME, Type.getDescriptor(ObjectAccessLog.class)));
+            getIdMethod.instructions.add(new InsnNode(ARETURN));
+
+            classNode.methods.add(getIdMethod);
     }
 
 }

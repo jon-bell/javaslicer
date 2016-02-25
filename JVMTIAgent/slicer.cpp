@@ -88,142 +88,51 @@ void describe(jvmtiError err) {
 		printf("error [%d]", err);
 	}
 }
-static int readInt(unsigned char * b, int index) {
-	return ((b[index] & 0xFF) << 24) | ((b[index + 1] & 0xFF) << 16)
-			| ((b[index + 2] & 0xFF) << 8) | (b[index + 3] & 0xFF);
-}
-static int readUnsignedShort(unsigned char * b, int index) {
-    return ((b[index] & 0xFF) << 8) | (b[index + 1] & 0xFF);
-}
-static int getIntFromCPool(int idxToCpool, unsigned char * cpool)
-{
-	int v = 0;
-	int strlen = 0;
-	int idx = 1;
-	while (idx < idxToCpool) {
-		switch (cpool[v]) {
-		case JVM_CONSTANT_Fieldref:
-		case JVM_CONSTANT_Methodref:
-		case JVM_CONSTANT_InterfaceMethodref:
-		case JVM_CONSTANT_Integer:
-		case JVM_CONSTANT_Float:
-		case JVM_CONSTANT_NameAndType:
-		case JVM_CONSTANT_InvokeDynamic:
-			v += 5;
-			break;
-		case JVM_CONSTANT_Long:
-		case JVM_CONSTANT_Double:
-			v += 9;
-			idx++;
-			break;
-		case JVM_CONSTANT_Utf8:
-			strlen = readUnsignedShort(cpool, v + 1);
-			v += 3 + strlen;
-			break;
-		case JVM_CONSTANT_MethodHandle:
-		default:
-			v += 3;
-			break;
-		}
-		idx++;
+
+/*
+ * Implementation of _setTag JNI function.
+ */
+JNIEXPORT static void JNICALL setTag(JNIEnv *env, jclass klass,
+		jobject o, jobject expr) {
+	if (gdata->vmDead) {
+		return;
 	}
-	//v now points to the end of the int
-	return readInt(cpool, v + 1);
-}
-static int JNICALL getTraceLocation(JNIEnv *env, jobject obj, jint depth) {
-	jvmtiFrameInfo frames[depth + 1];
-	jint count;
-	jvmtiError err;
-	char *methodName;
-	char *methodDesc;
-	unsigned char *bytecodes;
-	jclass declaringClass;
-	jint nBytecodes;
-	jint bci;
-	jint cpoolSize;
-	jint cpoolBCSize;
-	int u = 0;
-	int opcode;
-	int len;
-	int i;
-	int ret = -1;
-
-	unsigned char * cpool;
-	static unsigned char _opcode_length[JVM_OPC_MAX + 1] =
-	JVM_OPCODE_LENGTH_INITIALIZER;
-
-	err = gdata->jvmti->GetStackTrace(NULL, 2, depth + 1, frames, &count);
-	check_jvmti_error(jvmti, err, "Cant get stack trace");
-
-//	err = jvmti->GetMethodName(frames[depth].method, &methodName, &methodDesc, NULL);
-//	check_jvmti_error(jvmti, err, "Can't retrieve method name");
-	err = jvmti->GetMethodDeclaringClass(frames[depth].method, &declaringClass);
-	check_jvmti_error(jvmti, err, "Can't retrieve method Class");
-	err = jvmti->GetBytecodes(frames[depth].method, &nBytecodes, &bytecodes);
-	check_jvmti_error(jvmti, err, "Can't retrieve method bytecodes");
-	err = jvmti->GetConstantPool(declaringClass, &cpoolSize, &cpoolBCSize,
-			&cpool);
-	check_jvmti_error(jvmti, err, "Can't retrieve class constant pool");
-
-	//now read up to the instruction before this one
-
-	while (u < frames[depth].location - 1) {
-		opcode = bytecodes[u];
-		if (opcode > JVM_OPC_MAX) {
-			fatal_error("Invalid opcode");
-		}
-		if (opcode == JVM_OPC_tableswitch) {
-			u = u + 4 - (u & 3);
-			for (int i = readInt(bytecodes, u + 8) - readInt(bytecodes, u + 4)
-					+ 1; i > 0; --i) {
-				u += 4;
-			}
-			u += 12;
-		} else if (opcode == JVM_OPC_lookupswitch) {
-			// skips 0 to 3 padding bytes
-			u = u + 4 - (u & 3);
-			// reads instruction
-			for (int i = readInt(bytecodes, u + 4); i > 0; --i) {
-				u += 8;
-			}
-			u += 8;
-		} else {
-			len = _opcode_length[opcode];
-			if (u + len == frames[depth].location - 1) {
-				if (opcode == JVM_OPC_ldc) {
-					ret = getIntFromCPool(bytecodes[u + 1] & 0xFF,cpool);
-				} else if (opcode == JVM_OPC_ldc_w) {
-					ret = getIntFromCPool(readUnsignedShort(bytecodes, u + 1),cpool);
-				} else if (opcode == JVM_OPC_sipush) {
-					ret = readUnsignedShort(bytecodes, u + 1);
-				} else if (opcode == JVM_OPC_bipush) {
-					ret = bytecodes[u+1] & 0xff;
-				} else if (opcode == JVM_OPC_iconst_0)
-					ret = 0;
-				else if (opcode == JVM_OPC_iconst_1)
-					ret = 1;
-				else if (opcode == JVM_OPC_iconst_2)
-					ret = 2;
-				else if (opcode == JVM_OPC_iconst_3)
-					ret = 3;
-				else if (opcode == JVM_OPC_iconst_4)
-					ret = 4;
-				else if (opcode == JVM_OPC_iconst_5)
-					ret = 5;
-			}
-			u += len;
-		}
+	if(!o)
+	{
+		return;
 	}
-//	printf("Location %s %s bci %d -> %d\n", methodName, methodDesc,
-//			frames[depth].location, ret);
-
-	jvmti->Deallocate(bytecodes);
-//	jvmti->Deallocate(methodName);
-//	jvmti->Deallocate(methodDesc);
-
-	return ret;
+	jvmtiError error;
+	jlong tag;
+	if (expr) {
+		//Set the tag, make a new global reference to it
+		error = gdata->jvmti->SetTag(o, (jlong) (ptrdiff_t) (void*) env->NewGlobalRef(expr));
+	} else {
+		error = gdata->jvmti->SetTag(o, 0);
+	}
+	if(error == JVMTI_ERROR_WRONG_PHASE)
+	return;
+	check_jvmti_error(gdata->jvmti, error, "Cannot set object tag");
 }
-
+/*
+ * Implementation of _getTag JNI function
+ */
+JNIEXPORT static jobject JNICALL getTag(JNIEnv *env, jclass klass,
+		jobject o) {
+	if (gdata->vmDead) {
+		return NULL;
+	}
+	jvmtiError error;
+	jlong tag;
+	error = gdata->jvmti->GetTag(o, &tag);
+	if(error == JVMTI_ERROR_WRONG_PHASE)
+	return NULL;
+	check_jvmti_error(gdata->jvmti, error, "Cannot get object tag");
+	if(tag)
+	{
+		return (jobject) (ptrdiff_t) tag;
+	}
+	return NULL;
+}
 /* Callback for JVMTI_EVENT_VM_START */
 static void JNICALL
 cbVMStart(jvmtiEnv *jvmti, JNIEnv *env) {
@@ -236,19 +145,20 @@ cbVMStart(jvmtiEnv *jvmti, JNIEnv *env) {
 		jvmtiJlocationFormat fmt;
 
 		/* Java Native Methods for class */
-		static JNINativeMethod registry[1] = { { "_getTraceLocation", "(I)I",
-				(void*) &getTraceLocation } };
+		static JNINativeMethod registry[2] = { { "_getTag", "(Ljava/lang/Object;)Lde/unisb/cs/st/javaslicer/tracer/mt/ObjectAccessLog;",
+				(void*) &getTag }, { "_setTag", "(Ljava/lang/Object;Lde/unisb/cs/st/javaslicer/tracer/mt/ObjectAccessLog;)V",
+						(void*) &setTag } };
 		/* Register Natives for class whose methods we use */
 		klass = env->FindClass(
-				"de/unisb/cs/st/javaslicer/tracer/LazyTraceLocator");
+				"de/unisb/cs/st/javaslicer/tracer/mt/ObjectAccessLog");
 		if (klass == NULL) {
 			fatal_error(
-					"ERROR: JNI: Cannot find de.unisb.cs.st.javaslicer.tracer.LazyTraceLocator with FindClass\n");
+					"ERROR: JNI: Cannot find de/unisb/cs/st/javaslicer/tracer/mt/ObjectAccessLog with FindClass\n");
 		}
-		rc = env->RegisterNatives(klass, registry, 1);
+		rc = env->RegisterNatives(klass, registry, 2);
 		if (rc != 0) {
 			fatal_error(
-					"ERROR: JNI: Cannot register natives for class de.unisb.cs.st.javaslicer.tracer.LazyTraceLocator\n");
+					"ERROR: JNI: Cannot register natives for class de/unisb/cs/st/javaslicer/tracer/mt/ObjectAccessLog\n");
 		}
 		/* Engage calls. */
 		field = env->GetStaticFieldID(klass, "engaged", "I");
@@ -312,9 +222,7 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options,
 	/* Here we save the jvmtiEnv* for Agent_OnUnload(). */
 	gdata->jvmti = jvmti;
 	(void) memset(&capa, 0, sizeof(jvmtiCapabilities));
-	capa.can_get_line_numbers = 1;
-	capa.can_get_bytecodes = 1;
-	capa.can_get_constant_pool = 1;
+	capa.can_tag_objects = 1;
 
 	error = jvmti->AddCapabilities(&capa);
 	check_jvmti_error(jvmti, error,

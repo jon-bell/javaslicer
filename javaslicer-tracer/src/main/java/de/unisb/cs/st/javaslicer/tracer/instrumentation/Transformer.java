@@ -23,8 +23,10 @@
 package de.unisb.cs.st.javaslicer.tracer.instrumentation;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
@@ -52,6 +54,7 @@ import org.objectweb.asm.tree.analysis.BasicVerifier;
 import org.objectweb.asm.tree.analysis.Frame;
 import org.objectweb.asm.util.CheckClassAdapter;
 import org.objectweb.asm.util.Textifier;
+import org.objectweb.asm.util.TraceClassVisitor;
 import org.objectweb.asm.util.TraceMethodVisitor;
 
 import de.unisb.cs.st.javaslicer.common.classRepresentation.Field;
@@ -64,10 +67,9 @@ import de.unisb.cs.st.javaslicer.tracer.Tracer;
 public class Transformer implements ClassFileTransformer {
 
     /**
-     * The asm {@link ClassWriter} has an "error" (maybe feature) in the
-     * method {@link #getCommonSuperClass(String, String)}, because it
-     * only uses the classloader of the current class, not the system
-     * class loader.
+     * The asm {@link ClassWriter} has an "error" (maybe feature) in the method
+     * {@link #getCommonSuperClass(String, String)}, because it only uses the
+     * classloader of the current class, not the system class loader.
      *
      * @author Clemens Hammacher
      */
@@ -77,18 +79,14 @@ public class Transformer implements ClassFileTransformer {
         }
 
         @Override
-        protected String getCommonSuperClass(String type1, String type2)
-        {
-        	if (type1.equals(type2))
-        		return type1;
-        	return "java/lang/Object";
+        protected String getCommonSuperClass(String type1, String type2) {
+            if (type1.equals(type2))
+                return type1;
+            return "java/lang/Object";
         }
     }
 
-    private final String[] pauseTracingClasses = new String[] {
-            "java.lang.ClassLoader",
-            "sun.instrument.InstrumentationImpl"
-    };
+    private final String[] pauseTracingClasses = new String[] { "java.lang.ClassLoader", "sun.instrument.InstrumentationImpl" };
 
     private final Set<String> notRedefinedClasses;
 
@@ -113,9 +111,7 @@ public class Transformer implements ClassFileTransformer {
     }
 
     @Override
-	public byte[] transform(final ClassLoader loader, final String className,
-            final Class<?> classBeingRedefined, final ProtectionDomain protectionDomain,
-            final byte[] classfileBuffer) {
+    public byte[] transform(final ClassLoader loader, final String className, final Class<?> classBeingRedefined, final ProtectionDomain protectionDomain, final byte[] classfileBuffer) {
 
         final long startTime = System.nanoTime();
 
@@ -148,14 +144,13 @@ public class Transformer implements ClassFileTransformer {
                 final long nanoSecs = System.nanoTime() - startTime;
                 this.totalTransformationTime.addAndGet(nanoSecs);
                 this.totalTransformedClasses.incrementAndGet();
-                final String text = String.format((Locale)null, "Transforming %s took %.2f msec.%n",
-                        className, 1e-6*nanoSecs);
+                final String text = String.format((Locale) null, "Transforming %s took %.2f msec.%n", className, 1e-6 * nanoSecs);
                 System.out.print(text);
             }
             if (paused && tt != null)
                 tt.resumeTracing();
         }
-   }
+    }
 
     private boolean isExcluded(final String javaClassName) {
         if (javaClassName.startsWith("de.unisb.cs.st.javaslicer.tracer."))
@@ -166,15 +161,14 @@ public class Transformer implements ClassFileTransformer {
             return true;
         if (javaClassName.startsWith("de.unisb.cs.st.sequitur"))
             return true;
-        
+
         //Start: add jon
-        if(javaClassName.startsWith("org.apache.maven") && !javaClassName.equals("org.apache.maven.surefire.booter.ForkedBooter"))
+        if (javaClassName.startsWith("org.apache.maven") && !javaClassName.equals("org.apache.maven.surefire.booter.ForkedBooter"))
             return true;
-        if(javaClassName.startsWith("edu.columbia.cs.psl.testdepends") && !javaClassName.equals("edu.columbia.cs.psl.testdepends.DependencyInfo"))
+        if (javaClassName.startsWith("edu.columbia.cs.psl.testdepends") && !javaClassName.equals("edu.columbia.cs.psl.testdepends.DependencyInfo"))
             return true;
         //end: add jon
-            
-            
+
         //////////////////////////////////////////////////////////////////
         // NOTE: these will be cleaned up when the system runs stable
         //////////////////////////////////////////////////////////////////
@@ -182,19 +176,17 @@ public class Transformer implements ClassFileTransformer {
         if (javaClassName.equals("java.lang.System"))
             return true;
         /*
-        if (javaClassName.equals("java.lang.VerifyError")
-                || javaClassName.equals("java.lang.ClassCircularityError")
-                || javaClassName.equals("java.lang.LinkageError")
-                || javaClassName.equals("java.lang.Error")
-                || javaClassName.equals("java.lang.Throwable"))
-            return null;
-        */
+         * if (javaClassName.equals("java.lang.VerifyError") ||
+         * javaClassName.equals("java.lang.ClassCircularityError") ||
+         * javaClassName.equals("java.lang.LinkageError") ||
+         * javaClassName.equals("java.lang.Error") ||
+         * javaClassName.equals("java.lang.Throwable")) return null;
+         */
 
         if (javaClassName.startsWith("java.util.Collections"))
             return true;
 
-        if (javaClassName.startsWith("java.lang.Thread")
-                && !"java.lang.Thread".equals(javaClassName))
+        if (javaClassName.startsWith("java.lang.Thread") && !"java.lang.Thread".equals(javaClassName))
             return true;
         // because of Thread.getName()
         if (javaClassName.equals("java.lang.String"))
@@ -216,7 +208,7 @@ public class Transformer implements ClassFileTransformer {
 
     private byte[] transform0(final String className, final String javaClassName, final byte[] classfileBuffer) {
 
-    	long startNanos = System.nanoTime();
+        long startNanos = System.nanoTime();
 
         final ClassReader reader = new ClassReader(classfileBuffer);
 
@@ -229,87 +221,99 @@ public class Transformer implements ClassFileTransformer {
         if (this.tracer.check) {
             checkClass(classfileBuffer, className, classfileBuffer);
         }
+        try {
+            // we have to synchronize on System.out first.
+            // otherwise it may lead to a deadlock if a thread calls removeStale() on ConcurrentReferenceHashMap
+            // while he holds the lock for System.out, but another thread is inside the transformation step and
+            // waits for the lock of System.out
+            synchronized (System.out) {
+                synchronized (this.transformationLock) {
+                    // register that class for later reconstruction of the trace
+                    List<Field> fields = classNode.fields.isEmpty() ? Collections.<Field> emptyList() : new ArrayList<Field>(classNode.fields.size());
 
-        // we have to synchronize on System.out first.
-        // otherwise it may lead to a deadlock if a thread calls removeStale() on ConcurrentReferenceHashMap
-        // while he holds the lock for System.out, but another thread is inside the transformation step and
-        // waits for the lock of System.out
-        synchronized (System.out) { synchronized (this.transformationLock) {
+                    final String javaSuperName = Type.getObjectType(classNode.superName).getClassName();
+                    final ReadClass readClass = new ReadClass(className, AbstractInstruction.getNextIndex(), classNode.access, classNode.sourceFile, fields, javaSuperName);
+                    for (final Object fieldObj : classNode.fields) {
+                        final FieldNode f = (FieldNode) fieldObj;
+                        fields.add(new Field(f.name, f.desc, f.access, readClass));
+                    }
 
-            // register that class for later reconstruction of the trace
-            List<Field> fields = classNode.fields.isEmpty()
-            	? Collections.<Field>emptyList()
-            	: new ArrayList<Field>(classNode.fields.size());
+                    long nanosBeforeTransformation = System.nanoTime();
 
-            final String javaSuperName = Type.getObjectType(classNode.superName).getClassName();
-            final ReadClass readClass = new ReadClass(
-                className, AbstractInstruction.getNextIndex(), classNode.access,
-                classNode.sourceFile, fields, javaSuperName);
-            for (final Object fieldObj: classNode.fields) {
-                final FieldNode f = (FieldNode) fieldObj;
-                fields.add(new Field(f.name, f.desc, f.access, readClass));
+                    if (Arrays.asList(this.pauseTracingClasses).contains(javaClassName) || className.startsWith("java/security/")) {
+                        new PauseTracingInstrumenter(readClass, this.tracer).transform(classNode);
+                    } else {
+                        if ("java/lang/Thread".equals(className))
+                            new ThreadInstrumenter(readClass, this.tracer).transform(classNode);
+                        else
+                            new TracingClassInstrumenter(readClass, this.tracer).transform(classNode);
+                    }
+
+                    new IdentifiableInstrumenter(readClass, this.tracer).transform(classNode);
+
+                    long nanosAfterTransformation = System.nanoTime();
+                    this.totalRawTransformationTime.addAndGet(nanosAfterTransformation - nanosBeforeTransformation);
+
+                    writer = new FixedClassWriter(COMPUTE_FRAMES ? ClassWriter.COMPUTE_FRAMES : ClassWriter.COMPUTE_MAXS);
+                    ClassVisitor output = this.tracer.check ? new CheckClassAdapter(writer, false) : writer;
+
+                    classNode.accept(COMPUTE_FRAMES ? new JSRInliner(output) : output);
+
+                    this.totalBytecodeWritingTime.addAndGet(System.nanoTime() - nanosAfterTransformation);
+
+                    readClass.setInstructionNumberEnd(AbstractInstruction.getNextIndex());
+
+                    // now we can write the class out
+                    // NOTE: we do not write it out immediately, because this sometimes leads
+                    // to circular dependencies!
+                    //readClass.writeOut(this.readClassesOutputStream, this.readClassesStringCache);
+                    this.readClasses.add(readClass);
+
+                }
             }
 
-            long nanosBeforeTransformation = System.nanoTime();
+            final byte[] newClassfileBuffer = writer.toByteArray();
 
-            if (Arrays.asList(this.pauseTracingClasses).contains(javaClassName)
-                    || className.startsWith("java/security/")) {
-                new PauseTracingInstrumenter(readClass, this.tracer).transform(classNode);
-            } else {
-                if ("java/lang/Thread".equals(className))
-                    new ThreadInstrumenter(readClass, this.tracer).transform(classNode);
-                else
-                    new TracingClassInstrumenter(readClass, this.tracer).transform(classNode);
+            if (this.tracer.debug) {
+                File debugDir = new File("debug-tr");
+                if (!debugDir.exists())
+                    debugDir.mkdir();
+                File f = new File("debug-tr/" + className.replace("/", ".") + ".class");
+                try {
+                    FileOutputStream fos = new FileOutputStream(f);
+                    fos.write(newClassfileBuffer);
+                    fos.close();
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                }
+            }
+            if (this.tracer.check) {
+                checkClass(newClassfileBuffer, className, classfileBuffer);
             }
 
-            new IdentifiableInstrumenter(readClass, this.tracer).transform(classNode);
+            //printClass(newClassfileBuffer, Type.getObjectType(className).getClassName());
+            /*
+             * if (className.endsWith("line/Main"))
+             * printClass(newClassfileBuffer,
+             * Type.getObjectType(className).getClassName());
+             */
 
-            long nanosAfterTransformation = System.nanoTime();
-            this.totalRawTransformationTime.addAndGet(nanosAfterTransformation - nanosBeforeTransformation);
-
-            writer = new FixedClassWriter(COMPUTE_FRAMES ? ClassWriter.COMPUTE_FRAMES : ClassWriter.COMPUTE_MAXS);
-            ClassVisitor output = this.tracer.check ? new CheckClassAdapter(writer, false) : writer;
-
-            classNode.accept(COMPUTE_FRAMES ? new JSRInliner(output) : output);
-
-            this.totalBytecodeWritingTime.addAndGet(System.nanoTime() - nanosAfterTransformation);
-
-            readClass.setInstructionNumberEnd(AbstractInstruction.getNextIndex());
-
-            // now we can write the class out
-            // NOTE: we do not write it out immediately, because this sometimes leads
-            // to circular dependencies!
-            //readClass.writeOut(this.readClassesOutputStream, this.readClassesStringCache);
-            this.readClasses.add(readClass);
-
-        }}
-
-        final byte[] newClassfileBuffer = writer.toByteArray();
-
-        if (this.tracer.debug) {
-            File debugDir = new File("debug-tr");
-            if (!debugDir.exists())
-                debugDir.mkdir();
-            File f = new File("debug-tr/" + className.replace("/", ".") + ".class");
+            return newClassfileBuffer;
+        } catch (Throwable t) {
+            System.err.println("Uncaught error in instrumentation:");
+            t.printStackTrace();
+            PrintWriter pw;
             try {
-                FileOutputStream fos = new FileOutputStream(f);
-                fos.write(newClassfileBuffer);
-                fos.close();
-            } catch (Throwable t) {
-                t.printStackTrace();
+                pw = new PrintWriter("lastClass.txt");
+
+                TraceClassVisitor tcv = new TraceClassVisitor(pw);
+                classNode.accept(tcv);
+                pw.close();
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
             }
+            return null;
         }
-        if (this.tracer.check) {
-            checkClass(newClassfileBuffer, className, classfileBuffer);
-        }
-
-        //printClass(newClassfileBuffer, Type.getObjectType(className).getClassName());
-        /*
-        if (className.endsWith("line/Main"))
-            printClass(newClassfileBuffer, Type.getObjectType(className).getClassName());
-        */
-
-        return newClassfileBuffer;
     }
 
     private boolean checkClass(final byte[] newClassfileBuffer, final String classname, byte[] origClassfileBuffer) {
@@ -328,23 +332,22 @@ public class Transformer implements ClassFileTransformer {
             try {
                 a.analyze(cn.name, method);
             } catch (final AnalyzerException e) {
-                System.err.println("Error in method " + classname + "." + method.name
-                        + method.desc + ": " + e);
+                System.err.println("Error in method " + classname + "." + method.name + method.desc + ": " + e);
                 //e.printStackTrace(System.err);
                 printMethod(a, System.err, method);
                 if (newClassfileBuffer == origClassfileBuffer) {
                     System.err.println("This is the original bytecode!");
                 } else {
-	                System.err.println("original bytecode:");
-	                ClassReader origClassReader = new ClassReader(origClassfileBuffer);
-	                ClassNode origClassNode = new ClassNode();
-	                origClassReader.accept(origClassNode, 0);
-	                for (Object origMethodObj : origClassNode.methods) {
-	                	MethodNode origMethod = (MethodNode) origMethodObj;
-	                	if (origMethod.name.equals(method.name) && origMethod.desc.equals(method.desc))
-	                		printMethod(System.err, origMethod);
+                    System.err.println("original bytecode:");
+                    ClassReader origClassReader = new ClassReader(origClassfileBuffer);
+                    ClassNode origClassNode = new ClassNode();
+                    origClassReader.accept(origClassNode, 0);
+                    for (Object origMethodObj : origClassNode.methods) {
+                        MethodNode origMethod = (MethodNode) origMethodObj;
+                        if (origMethod.name.equals(method.name) && origMethod.desc.equals(method.desc))
+                            printMethod(System.err, origMethod);
 
-	                }
+                    }
                 }
                 return false;
             }
@@ -369,7 +372,7 @@ public class Transformer implements ClassFileTransformer {
         }
         for (int j = 0; j < method.tryCatchBlocks.size(); ++j) {
             ((TryCatchBlockNode) method.tryCatchBlocks.get(j)).accept(mv);
-            out.print(" " + textifier.text.get(method.instructions.size()+j));
+            out.print(" " + textifier.text.get(method.instructions.size() + j));
         }
         out.println(" MAXSTACK " + method.maxStack);
         out.println(" MAXLOCALS " + method.maxLocals);
@@ -407,7 +410,7 @@ public class Transformer implements ClassFileTransformer {
         }
         for (int j = 0; j < method.tryCatchBlocks.size(); ++j) {
             ((TryCatchBlockNode) method.tryCatchBlocks.get(j)).accept(mv);
-            out.print(" " + textifier.text.get(method.instructions.size()+j));
+            out.print(" " + textifier.text.get(method.instructions.size() + j));
         }
         out.println(" MAXSTACK " + method.maxStack);
         out.println(" MAXLOCALS " + method.maxLocals);
@@ -417,9 +420,10 @@ public class Transformer implements ClassFileTransformer {
     @SuppressWarnings("unused")
     private static void printClass(final byte[] classfileBuffer, final String classname) {
         /*
-        final TraceClassVisitor v = new TraceClassVisitor(new PrintWriter(System.out));
-        new ClassReader(classfileBuffer).accept(v, ClassReader.SKIP_DEBUG);
-        */
+         * final TraceClassVisitor v = new TraceClassVisitor(new
+         * PrintWriter(System.out)); new ClassReader(classfileBuffer).accept(v,
+         * ClassReader.SKIP_DEBUG);
+         */
         final ClassNode cn = new ClassNode();
         final ClassReader cr = new ClassReader(classfileBuffer);
         //cr.accept(new CheckClassAdapter(cn), ClassReader.SKIP_DEBUG);
@@ -432,8 +436,7 @@ public class Transformer implements ClassFileTransformer {
             try {
                 a.analyze(cn.name, method);
             } catch (final AnalyzerException e) {
-                System.err.println("// error in method " + classname + "." + method.name
-                        + method.desc + ":" + e);
+                System.err.println("// error in method " + classname + "." + method.name + method.desc + ":" + e);
             }
             printMethod(a, System.err, method);
         }
@@ -452,20 +455,20 @@ public class Transformer implements ClassFileTransformer {
         this.instrumentation.removeTransformer(this);
         if (this.tracer.debug) {
             TracingMethodInstrumenter.printStats(System.out);
-            System.out.format((Locale)null, "Transforming %d classes took %.3f seconds in total.%n",
-                    this.totalTransformedClasses.get(), 1e-9*this.totalTransformationTime.get());
-            System.out.format((Locale)null, "  - %7.3f seconds for parsing bytecode\n  - %7.3f seconds for transformations\n  - %7.3f seconds for writing bytecode\n",
-            	1e-9*this.totalBytecodeParsingTime.get(), 1e-9*this.totalRawTransformationTime.get(), 1e-9*this.totalBytecodeWritingTime.get());
+            System.out.format((Locale) null, "Transforming %d classes took %.3f seconds in total.%n", this.totalTransformedClasses.get(), 1e-9 * this.totalTransformationTime.get());
+            System.out.format((Locale) null, "  - %7.3f seconds for parsing bytecode\n  - %7.3f seconds for transformations\n  - %7.3f seconds for writing bytecode\n",
+                    1e-9 * this.totalBytecodeParsingTime.get(), 1e-9 * this.totalRawTransformationTime.get(), 1e-9 * this.totalBytecodeWritingTime.get());
         }
     }
 
     /**
-     * Checks whether the class given by the fully qualified java class name has been
-     * redefined by the instrumenter or not.
-     * The classes that couldn't get redefined are those already loaded by the vm when
-     * the agent's premain method was executed.
+     * Checks whether the class given by the fully qualified java class name has
+     * been redefined by the instrumenter or not. The classes that couldn't get
+     * redefined are those already loaded by the vm when the agent's premain
+     * method was executed.
      *
-     * @param className the fully qualified classname to check
+     * @param className
+     *            the fully qualified classname to check
      * @return true if the class was redefined, false if not
      */
     // hmm, redefined is the wrong word here...
