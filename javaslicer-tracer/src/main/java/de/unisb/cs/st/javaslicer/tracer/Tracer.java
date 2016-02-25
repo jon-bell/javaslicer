@@ -90,7 +90,8 @@ public class Tracer {
     private final StringCacheOutput readClassesStringCache = new StringCacheOutput();
     private final DataOutputStream readClassesOutputStream;
     private final DataOutputStream threadTracersOutputStream;
-
+    private final DataOutputStream threadAccessLogOutputStream;
+    
     private final Set<String> notRedefinedClasses = new HashSet<String>();
 
     // there are classes needed while retransforming.
@@ -144,6 +145,16 @@ public class Tracer {
             throw new AssertionError("MultiplexedFileWriter does not monotonously increase stream ids");
         this.threadTracersOutputStream = new DataOutputStream(new BufferedOutputStream(
                 new GZIPOutputStream(threadTracersMultiplexedStream, 512), 512));
+        if(mtOrdering)
+        {
+            final MultiplexOutputStream threadAccessMultiplexedStream = this.file.newOutputStream();
+            if (threadAccessMultiplexedStream.getId() != 2)
+                throw new AssertionError("MultiplexedFileWriter does not monotonously increase stream ids");
+            this.threadAccessLogOutputStream = new DataOutputStream(new BufferedOutputStream(
+                    new GZIPOutputStream(threadAccessMultiplexedStream, 512), 512));
+        }
+        else
+            this.threadAccessLogOutputStream = null;
         final ConcurrentReferenceHashMap<Thread, ThreadTracer> threadTracersMap =
             new ConcurrentReferenceHashMap<Thread, ThreadTracer>(
                     32, .75f, 16, ReferenceType.WEAK, ReferenceType.STRONG,
@@ -162,14 +173,14 @@ public class Tracer {
     }
 
     public void error(final Exception e) {
-        if (this.debug) {
+//        if (this.debug) {
             final StringWriter sw = new StringWriter();
             final PrintWriter ps = new PrintWriter(sw);
             e.printStackTrace(ps);
             System.err.println(this.lastErrorString = sw.toString());
-        } else {
-            System.err.println(this.lastErrorString = e.toString());
-        }
+//        } else {
+//            System.err.println(this.lastErrorString = e.toString());
+//        }
         this.errorCount.getAndIncrement();
     }
 
@@ -436,23 +447,31 @@ public class Tracer {
             while ((rc = this.readClasses.poll()) != null)
                 rc.writeOut(this.readClassesOutputStream, this.readClassesStringCache);
             this.readClassesOutputStream.close();
-            this.file.close();
             
             if (this.isMultiThreadedSafe()) {
-                System.err.println("And now for the thread conflicts:");
-                for (ObjectAccessLog a : accessedObjects) {
-                    if(a.conflict())
-                    {
-                        System.out.println(a);
-                        de.unisb.cs.st.javaslicer.tracer.mt.LinkedList.Node<SFAccess> acc = a.getAccessedSFs().getFirst();
-                        while(acc != null)
-                        {
-                            System.out.println(acc.entry);
-                            acc = acc.next;
-                        }
-                    }
-                }
+                writeOutThreadAccesses();
+                this.threadAccessLogOutputStream.close();
             }
+            
+            this.file.close();
+        }
+    }
+
+    private void writeOutThreadAccesses() throws IOException {
+        System.err.println("And now for the thread conflicts:");
+        LinkedList<ObjectAccessLog> toWrite = new LinkedList<ObjectAccessLog>();
+        int n = 0;
+        for (ObjectAccessLog a : accessedObjects) {
+            if(a.conflict())
+            {
+                toWrite.add(a);
+                n++;
+            }
+        }
+        this.threadAccessLogOutputStream.writeInt(n);
+        for(ObjectAccessLog l : toWrite)
+        {
+            l.writeOut(this.threadAccessLogOutputStream, this.readClassesStringCache);
         }
     }
 

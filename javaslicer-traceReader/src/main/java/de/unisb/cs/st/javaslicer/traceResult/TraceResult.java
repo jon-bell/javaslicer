@@ -32,7 +32,9 @@ import java.io.PushbackInputStream;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.zip.GZIPInputStream;
@@ -86,6 +88,8 @@ public class TraceResult {
 
     private final Instruction[] instructions;
 
+    private final HashMap<String, List<StaticFieldAccess>> staticFieldLog;
+    
     public TraceResult(File filename) throws IOException {
         final MultiplexedFileReader file = new MultiplexedFileReader(filename);
         if (file.getStreamIds().size() < 2)
@@ -126,6 +130,41 @@ public class TraceResult {
         threadTraces0.trimToSize();
         Collections.sort(threadTraces0);
         this.threadTraces = threadTraces0;
+        if(file.hasStreamId(2))
+        {
+            final MultiplexInputStream threadAccessLogStream = file.getInputStream(2);
+            if (threadAccessLogStream == null)
+                throw new IOException("corrupted data");
+            pushBackInput = new PushbackInputStream(new BufferedInputStream(
+                    new GZIPInputStream(threadAccessLogStream, 512), 512), 1);
+            final DataInputStream threadAccessLogInputStream = new DataInputStream(
+                    pushBackInput);
+            staticFieldLog = new HashMap<String, List<StaticFieldAccess>>();
+            int n = threadAccessLogInputStream.readInt();
+            System.out.println("Found " + n + " entries");
+            for(int i = 0; i < n; i++)
+            {
+                byte t = threadAccessLogInputStream.readByte();
+                if(t == 1)//SF
+                {
+                    int nEntry = threadAccessLogInputStream.readInt();
+                    for(int j = 0; j < nEntry; j++)
+                    {
+                        StaticFieldAccess acc = new StaticFieldAccess(stringCache.readString(threadAccessLogInputStream), stringCache.readString(threadAccessLogInputStream), threadAccessLogInputStream.readLong(), threadAccessLogInputStream.readByte() == 1 ? true:false);
+                        String key = acc.getClazz()+"."+acc.getField();
+                        if(!staticFieldLog.containsKey(key))
+                            staticFieldLog.put(key, new LinkedList<StaticFieldAccess>());
+                        staticFieldLog.get(key).add(acc);
+                    }
+                }
+                else if(t == 2)//obj
+                {
+                    
+                }
+            }
+        }
+        else
+            staticFieldLog = null;
     }
 
     private static Instruction[] getInstructionArray(final List<ReadClass> classes) throws IOException {
@@ -545,4 +584,8 @@ public class TraceResult {
         return found.getJavaThreadId() == javaThreadId ? found : null;
     }
 
+    public List<StaticFieldAccess> getStaticFieldLog(String clazz, String fieldName) {
+        return staticFieldLog.get(clazz+"."+fieldName);
+    }
+    
 }
