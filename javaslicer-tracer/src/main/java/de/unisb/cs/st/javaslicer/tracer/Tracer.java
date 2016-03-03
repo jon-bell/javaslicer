@@ -115,6 +115,10 @@ public class Tracer {
     private final Transformer transformer;
 
 
+    public Transformer getTransformer() {
+        return transformer;
+    }
+    
     private Tracer(final File filename, final boolean debug, final boolean check,
             final TraceSequenceFactory seqFac, final Instrumentation instrumentation) throws IOException {
         this.debug = debug;
@@ -169,6 +173,11 @@ public class Tracer {
         if (instance != null)
             throw new IllegalStateException("Tracer instance already exists");
         instance = new Tracer(filename, debug, check, seqFac, instrumentation);
+    }
+    
+    public static boolean isAvailable()
+    {
+        return instance != null;
     }
 
     public static Tracer getInstance() {

@@ -57,6 +57,11 @@ public class IdentifiableInstrumenter implements Opcodes {
     public void transform(final ClassNode classNode) {
         if (!this.tracer.wasRedefined(this.readClass.getName()))
             return;
+        if ((classNode.access & ACC_ANNOTATION) != 0)
+            return;
+        
+        classNode.interfaces.add(Type.getInternalName(Identifiable.class));
+
         if ((classNode.access & ACC_INTERFACE) != 0)
             return;
 
@@ -68,7 +73,6 @@ public class IdentifiableInstrumenter implements Opcodes {
         classNode.fields.add(new FieldNode(ACC_PRIVATE | ACC_SYNTHETIC | ACC_TRANSIENT,
             ID_FIELD_NAME, "J", null, null));
 
-        classNode.interfaces.add(Type.getInternalName(Identifiable.class));
 
         final MethodNode getIdMethod = new MethodNode(ACC_PUBLIC | ACC_FINAL | ACC_SYNTHETIC,
             "__tracing_get_object_id", "()J", null, null);

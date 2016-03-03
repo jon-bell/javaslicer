@@ -60,6 +60,7 @@ import de.unisb.cs.st.javaslicer.common.classRepresentation.instructions.Abstrac
 import de.unisb.cs.st.javaslicer.common.exceptions.TracerException;
 import de.unisb.cs.st.javaslicer.tracer.ThreadTracer;
 import de.unisb.cs.st.javaslicer.tracer.Tracer;
+import de.unisb.cs.st.javaslicer.tracer.traceSequences.Identifiable;
 
 public class Transformer implements ClassFileTransformer {
 
@@ -172,7 +173,7 @@ public class Transformer implements ClassFileTransformer {
             return true;
         if(javaClassName.startsWith("edu.columbia.cs.psl.testdepends") && !javaClassName.equals("edu.columbia.cs.psl.testdepends.DependencyInfo"))
             return true;
-        if(javaClassName.startsWith("org.pitest"))
+        if(javaClassName.startsWith("org.pitest") || javaClassName.startsWith("sun.pit"))
             return true;
         //end: add jon
             
@@ -216,7 +217,7 @@ public class Transformer implements ClassFileTransformer {
         return false;
     }
 
-    private byte[] transform0(final String className, final String javaClassName, final byte[] classfileBuffer) {
+    public byte[] transform0(final String className, final String javaClassName, final byte[] classfileBuffer) {
 
     	long startNanos = System.nanoTime();
 
@@ -226,6 +227,10 @@ public class Transformer implements ClassFileTransformer {
         reader.accept(classNode, 0);
         final ClassWriter writer;
 
+        if(classNode.interfaces != null)
+            for(Object o : classNode.interfaces)
+                if(o.equals(Type.getInternalName(Identifiable.class)))
+                    return null;
         this.totalBytecodeParsingTime.addAndGet(System.nanoTime() - startNanos);
 
         if (this.tracer.check) {
@@ -461,18 +466,18 @@ public class Transformer implements ClassFileTransformer {
         }
     }
 
-    /**
-     * Checks whether the class given by the fully qualified java class name has been
-     * redefined by the instrumenter or not.
-     * The classes that couldn't get redefined are those already loaded by the vm when
-     * the agent's premain method was executed.
-     *
-     * @param className the fully qualified classname to check
-     * @return true if the class was redefined, false if not
-     */
-    // hmm, redefined is the wrong word here...
-    public boolean wasRedefined(final String className) {
-        return !this.notRedefinedClasses.contains(className);
-    }
+//    /**
+//     * Checks whether the class given by the fully qualified java class name has been
+//     * redefined by the instrumenter or not.
+//     * The classes that couldn't get redefined are those already loaded by the vm when
+//     * the agent's premain method was executed.
+//     *
+//     * @param className the fully qualified classname to check
+//     * @return true if the class was redefined, false if not
+//     */
+//    // hmm, redefined is the wrong word here...
+//    public boolean wasRedefined(final String className) {
+//        return !this.notRedefinedClasses.contains(className);
+//    }
 
 }
