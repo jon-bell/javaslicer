@@ -122,9 +122,9 @@ public class Transformer implements ClassFileTransformer {
         ThreadTracer tt = null;
         boolean paused = false;
         try {
-            if (this.tracer.tracingReady)
+            if (this.tracer.isDoneTracing)
                 return null;
-
+            
             // disable tracing for the thread tracer of this thread
             tt = this.tracer.getThreadTracer();
             tt.pauseTracing();
@@ -171,6 +171,8 @@ public class Transformer implements ClassFileTransformer {
         if(javaClassName.startsWith("org.apache.maven") && !javaClassName.equals("org.apache.maven.surefire.booter.ForkedBooter"))
             return true;
         if(javaClassName.startsWith("edu.columbia.cs.psl.testdepends") && !javaClassName.equals("edu.columbia.cs.psl.testdepends.DependencyInfo"))
+            return true;
+        if(javaClassName.startsWith("org.pitest"))
             return true;
         //end: add jon
             
@@ -449,7 +451,7 @@ public class Transformer implements ClassFileTransformer {
     }
 
     public void finish() {
-        this.instrumentation.removeTransformer(this);
+//        this.instrumentation.removeTransformer(this);
         if (this.tracer.debug) {
             TracingMethodInstrumenter.printStats(System.out);
             System.out.format((Locale)null, "Transforming %d classes took %.3f seconds in total.%n",

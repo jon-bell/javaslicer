@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +71,7 @@ public class Tracer {
 
     protected final TraceSequenceFactory seqFactory;
 
-    private final Map<Thread, ThreadTracer> threadTracers;
+    private Map<Thread, ThreadTracer> threadTracers;
 
     // an (untraced) list that holds ThreadTracers that can be finished. They are added to this
     // list first, because if they would be finished immediately, it would leed to an recursive
@@ -81,13 +82,13 @@ public class Tracer {
         = Collections.synchronizedList(new UntracedArrayList<TraceSequenceTypes.Type>());
 
     public volatile boolean tracingStarted = false;
-    public volatile boolean tracingReady = false;
+    public volatile boolean isDoneTracing = false;
 
-    private final MultiplexedFileWriter file;
+    private MultiplexedFileWriter file;
     private final ConcurrentLinkedQueue<ReadClass> readClasses = new ConcurrentLinkedQueue<ReadClass>();
-    private final StringCacheOutput readClassesStringCache = new StringCacheOutput();
-    private final DataOutputStream readClassesOutputStream;
-    private final DataOutputStream threadTracersOutputStream;
+    private StringCacheOutput readClassesStringCache;
+    private DataOutputStream readClassesOutputStream;
+    private DataOutputStream threadTracersOutputStream;
 
     private final Set<String> notRedefinedClasses = new HashSet<String>();
 
@@ -119,6 +120,7 @@ public class Tracer {
         this.debug = debug;
         this.check = check;
         this.seqFactory = seqFac;
+        this.readClassesStringCache = new StringCacheOutput();
         this.transformer = new Transformer(this, instrumentation, this.readClasses, this.notRedefinedClasses);
         this.file = new MultiplexedFileWriter(filename, 512, MultiplexedFileWriter.is64bitVM,
                 ByteOrder.nativeOrder(), seqFac.shouldAutoFlushFile());
@@ -175,7 +177,7 @@ public class Tracer {
         return instance;
     }
 
-    public void add(final Instrumentation inst, final boolean retransformClasses) throws TracerException {
+    public void add(final Instrumentation inst, final boolean retransformClasses, boolean dontStartTracing) throws TracerException {
 
         // check the JRE version we run on
         final String javaVersion = System.getProperty("java.version");
@@ -259,14 +261,14 @@ public class Tracer {
                 TracingMethodInstrumenter.printStats(System.out);
             }
         }
-
-        synchronized (this.threadTracers) {
-            this.tracingStarted = true;
-            if (!this.tracingReady) {
-                for (final ThreadTracer tt: this.threadTracers.values())
-                    tt.resumeTracing();
+        if(!dontStartTracing)
+            synchronized (this.threadTracers) {
+                this.tracingStarted = true;
+                if (!this.isDoneTracing) {
+                    for (final ThreadTracer tt : this.threadTracers.values())
+                        tt.resumeTracing();
+                }
             }
-        }
     }
 
     public int getNextSequenceIndex() {
@@ -314,7 +316,7 @@ public class Tracer {
             assert this.threadTracerBeingCreated == null;
             this.threadTracerBeingCreated = currentThread;
             // exclude the MultiplexedFileWriter autoflush thread
-            if (this.tracingReady ||
+            if (this.isDoneTracing ||
                     currentThread.getClass().getName().startsWith(MultiplexedFileWriter.class.getName()))
                 newTracer = NullThreadTracer.instance;
             else
@@ -329,7 +331,7 @@ public class Tracer {
                 assert this.threadTracerBeingCreated == currentThread;
                 this.threadTracerBeingCreated = null;
                 // recheck tracingReady!
-                if (this.tracingStarted && !this.tracingReady)
+                if (this.tracingStarted && !this.isDoneTracing)
                     newTracer.resumeTracing();
             }
         }
@@ -394,11 +396,57 @@ public class Tracer {
         listeners.add(l);
     }
     private final Object finishLock = new Object();
+    
+    public void writeOutAndStartFresh(String filename)
+    {
+        try {
+            finish();
+            this.isDoneTracing = false;
+            this.readClassesStringCache = new StringCacheOutput();
+            this.file = new MultiplexedFileWriter(new File(filename), 512, MultiplexedFileWriter.is64bitVM,
+                    ByteOrder.nativeOrder(), seqFactory.shouldAutoFlushFile());
+            this.file.setReuseStreamIds(true);
+            final MultiplexOutputStream readClassesMultiplexedStream = this.file.newOutputStream();
+            if (readClassesMultiplexedStream.getId() != 0)
+                throw new AssertionError("MultiplexedFileWriter does not initially return stream id 0");
+            this.readClassesOutputStream = new DataOutputStream(new BufferedOutputStream(
+                    new GZIPOutputStream(readClassesMultiplexedStream, 512), 512));
+            final MultiplexOutputStream threadTracersMultiplexedStream = this.file.newOutputStream();
+            if (threadTracersMultiplexedStream.getId() != 1)
+                throw new AssertionError("MultiplexedFileWriter does not monotonously increase stream ids");
+            this.threadTracersOutputStream = new DataOutputStream(new BufferedOutputStream(
+                    new GZIPOutputStream(threadTracersMultiplexedStream, 512), 512));
+            final ConcurrentReferenceHashMap<Thread, ThreadTracer> threadTracersMap =
+                new ConcurrentReferenceHashMap<Thread, ThreadTracer>(
+                        32, .75f, 16, ReferenceType.WEAK, ReferenceType.STRONG,
+                        EnumSet.of(Option.IDENTITY_COMPARISONS));
+//            threadTracersMap.addRemoveStaleListener(new ConcurrentReferenceHashMap.RemoveStaleListener<ThreadTracer>() {
+//                @Override
+//                public void removed(final ThreadTracer removedValue) {
+//                    if (removedValue instanceof TracingThreadTracer) {
+//                        synchronized (Tracer.this.readyThreadTracers) {
+//                            Tracer.this.readyThreadTracers.add((TracingThreadTracer) removedValue);
+//                        }
+//                    }
+//                }
+//            });
+            this.threadTracers = threadTracersMap;
+            synchronized (this.threadTracers) {
+                this.tracingStarted = true;
+                if (!this.isDoneTracing) {
+                    for (final ThreadTracer tt: this.threadTracers.values())
+                        tt.resumeTracing();
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
     public void finish() throws IOException {
         synchronized (this.finishLock) {
-            if (this.tracingReady)
+            if (this.isDoneTracing)
                 return;
-            this.tracingReady = true;
+            this.isDoneTracing = true;
             this.transformer.finish();
             final List<TracingThreadTracer> allThreadTracers = new ArrayList<TracingThreadTracer>();
             synchronized (this.threadTracers) {
@@ -421,9 +469,9 @@ public class Tracer {
             }
             this.threadTracersOutputStream.close();
 
-            ReadClass rc;
-            while ((rc = this.readClasses.poll()) != null)
-                rc.writeOut(this.readClassesOutputStream, this.readClassesStringCache);
+            Iterator<ReadClass> iter = this.readClasses.iterator();
+            while (iter.hasNext())
+                iter.next().writeOut(this.readClassesOutputStream, this.readClassesStringCache);
             this.readClassesOutputStream.close();
             this.file.close();
         }

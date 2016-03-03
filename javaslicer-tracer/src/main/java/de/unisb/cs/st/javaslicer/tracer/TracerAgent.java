@@ -93,11 +93,12 @@ public class TracerAgent {
             */
 
             String logFilename = null;
-            final String[] args = agentArgs == null || agentArgs.length() == 0 ? new String[0] : agentArgs.split(",");
+            final String[] args = agentArgs == null || agentArgs.length() == 0 ? new String[0] : agentArgs.split(";");
 
             boolean debug = false;
             boolean check = false;
             TraceSequenceFactory seqFac = null;
+            boolean dontStartTracing = false;
             
             boolean appendTestName = false;
             for (final String arg : args) {
@@ -153,6 +154,8 @@ public class TracerAgent {
 					appendTestName = true;
 				} else if("ignoreBootPath".equalsIgnoreCase(key)){
 					
+				} else if("noAutoTrace".equalsIgnoreCase(key) && value.equalsIgnoreCase("true")){
+				    dontStartTracing = true;
 				}
 				else {
                     System.err.println("Unknown argument: " + key);
@@ -203,7 +206,7 @@ public class TracerAgent {
             }
             final Tracer tracer = Tracer.getInstance();
             try {
-                tracer.add(inst, true);
+                tracer.add(inst, true, dontStartTracing);
             } catch (final TracerException e) {
                 System.err.println("ERROR: could not add instrumenting agent:");
                 e.printStackTrace(System.err);
