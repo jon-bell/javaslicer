@@ -427,6 +427,10 @@ public class TraceResult {
         }
         System.out.println();
 
+	if (tracing == null && threads.size() == 1) {
+	    tracing = threads.get(0);
+	}
+	
         if (tracing == null) {
             System.out.println(threadToTrace == null ? "Couldn't find a main thread."
                     : "The thread you selected was not found.");
