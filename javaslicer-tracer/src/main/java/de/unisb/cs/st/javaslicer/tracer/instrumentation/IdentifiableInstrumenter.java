@@ -67,7 +67,7 @@ public class IdentifiableInstrumenter implements Opcodes {
 
         // do not modify if the parent class already implements Identifiable
         // (this is the case if the parent class was redefined)
-        if (this.tracer.wasRedefined(Type.getObjectType(classNode.superName).getClassName()))
+        if (!Transformer.isExcluded(classNode.superName.replace('/', '.')) && this.tracer.wasRedefined(Type.getObjectType(classNode.superName).getClassName()))
             return;
 
         classNode.fields.add(new FieldNode(ACC_PRIVATE | ACC_SYNTHETIC | ACC_TRANSIENT,

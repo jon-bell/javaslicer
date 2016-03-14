@@ -158,7 +158,7 @@ public class Transformer implements ClassFileTransformer {
         }
    }
 
-    private boolean isExcluded(final String javaClassName) {
+    public static boolean isExcluded(final String javaClassName) {
         if (javaClassName.startsWith("de.unisb.cs.st.javaslicer.tracer."))
             return true;
         if (javaClassName.startsWith("de.unisb.cs.st.javaslicer.common."))
@@ -173,7 +173,8 @@ public class Transformer implements ClassFileTransformer {
             return true;
         if(javaClassName.startsWith("edu.columbia.cs.psl.testdepends") && !javaClassName.equals("edu.columbia.cs.psl.testdepends.DependencyInfo"))
             return true;
-        if(javaClassName.startsWith("org.pitest") || javaClassName.startsWith("sun.pit"))
+        if((javaClassName.startsWith("org.pitest") || javaClassName.startsWith("sun.pit")) && !javaClassName.startsWith("org.pitest.junit.adapter.AdaptedJUnitTestUnit")
+                && !javaClassName.startsWith("org.pitest.mutationtest.execute."))
             return true;
         //end: add jon
             
