@@ -32,21 +32,23 @@ import java.util.Map;
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.LocalVariableNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TryCatchBlockNode;
-import org.objectweb.asm.util.CheckMethodAdapter;
-import org.objectweb.asm.util.Textifier;
-import org.objectweb.asm.util.TraceMethodVisitor;
 
 import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadClass;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadMethod;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.instructions.AbstractInstruction;
+import de.unisb.cs.st.javaslicer.tracer.ThreadTracer;
 import de.unisb.cs.st.javaslicer.tracer.Tracer;
+import de.unisb.cs.st.javaslicer.tracer.instrumentation.TracingMethodInstrumenter.FixedInstructionIterator;
 
 public class TracingClassInstrumenter implements Opcodes {
 
@@ -65,12 +67,37 @@ public class TracingClassInstrumenter implements Opcodes {
         this.readClass = readClass;
     }
 
+    private static String mainClassName;
+    public static String getMainClassName()
+    {
+        if(mainClassName == null)
+            mainClassName = System.getProperty("sun.java.command").split(" ")[0].replace('.', '/');
+        return mainClassName;
+    }
+
     @SuppressWarnings("unchecked")
     public void transform(final ClassNode classNode) {
         final ListIterator<MethodNode> methodIt = classNode.methods.listIterator();
+        boolean needToGenerateClinit = classNode.name.equals(getMainClassName());
+        
         while (methodIt.hasNext()) {
-            transformMethod(classNode, methodIt.next(), methodIt);
+            MethodNode next =  methodIt.next();
+            if(next.name.equals("<clinit>"))
+                needToGenerateClinit = false;
+            transformMethod(classNode, next, methodIt);
         }
+        
+        if(needToGenerateClinit)
+        {
+            MethodNode mn = new MethodNode(Opcodes.ASM5, Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+            FixedInstructionIterator instructionIterator = new FixedInstructionIterator(mn.instructions);
+            instructionIterator.add(new MethodInsnNode(INVOKESTATIC, Type.getInternalName(Tracer.class), "getInstance", "()L" + Type.getInternalName(Tracer.class) + ";", false));
+            instructionIterator.add(new MethodInsnNode(INVOKEVIRTUAL, Type.getInternalName(Tracer.class), "getThreadTracer", "()L" + Type.getInternalName(ThreadTracer.class) + ";", false));
+            instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE, Type.getInternalName(ThreadTracer.class), "mainStarting", "()V", true));
+            instructionIterator.add(new InsnNode(RETURN));
+            methodIt.add(mn);
+        }
+        
         this.readClass.ready();
     }
 

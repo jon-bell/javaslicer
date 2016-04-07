@@ -55,6 +55,7 @@ import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionInstanceF
 import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionInstanceInfo;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionType;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.LocalVariable;
+import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadClass;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadMethod;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.instructions.AbstractInstruction;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.instructions.MethodInvocationInstruction;
@@ -81,7 +82,7 @@ import de.unisb.cs.st.javaslicer.variables.Variable;
  */
 public class Slicer {
 
-    private static class SlicerInstance extends AbstractInstructionInstance {
+    static class SlicerInstance extends AbstractInstructionInstance {
 
         public boolean onDynamicSlice = false;
 
@@ -121,7 +122,8 @@ public class Slicer {
     private final List<ProgressMonitor> progressMonitors = new ArrayList<ProgressMonitor>(1);
     private final List<SliceVisitor> sliceVisitors = new ArrayList<SliceVisitor>(1);
     private final List<UntracedCallVisitor> untracedCallVisitors = new ArrayList<UntracedCallVisitor>(1);
-
+    private UnSlicedInstructionVisitor unSlicedInsnVisitor;
+    
     public Slicer(TraceResult trace) {
         this.trace = trace;
     }
@@ -228,10 +230,17 @@ public class Slicer {
 
         boolean warnUntracedMethods = cmdLine.hasOption("warn-untraced");
 
+        boolean printUnCalled = cmdLine.hasOption("print-uncalled");
+        
         SliceInstructionsCollector collector = new SliceInstructionsCollector();
         slicer.addSliceVisitor(collector);
         if (warnUntracedMethods)
             slicer.addUntracedCallVisitor(new PrintUniqueUntracedMethods());
+        
+        if(printUnCalled)
+        {
+            slicer.unSlicedInsnVisitor = new UnSlicedInstructionVisitor();
+        }
         slicer.process(tracing, sc, multithreaded);
         Set<InstructionInstance> slice = collector.getDynamicSliceInstances();
         long endTime = System.nanoTime();
@@ -246,10 +255,30 @@ public class Slicer {
                     insn.getInstruction().getMethod().getName(),
                     insn.getInstruction().getLineNumber(),
                     insn.toString());
+            if(printUnCalled)
+            {
+                slicer.unSlicedInsnVisitor.visitInstructionOnSlice(insn.getInstruction());
+            }
         }
         System.out.format((Locale)null, "%nSlice consists of %d bytecode instructions.%n", sliceArray.length);
         System.out.format((Locale)null, "Computation took %.2f seconds.%n", 1e-9*(endTime-startTime));
+        if(printUnCalled)
+        {
+            System.out.println("Instructions NOT appearing on slice:");
+            for(Instruction i : slicer.unSlicedInsnVisitor.getInsnsTraced())
+            {
+                System.out.println(getInstructionKey((MethodInvocationInstruction) i));
+            }
+        }
     }
+    
+    private static String getInstructionKey(MethodInvocationInstruction insn)
+    {
+        final ReadClass rc = insn.getMethod().getReadClass();
+        final ReadMethod rm = insn.getMethod();
+        return rc.getInternalClassName()+"."+rm.getName()+rm.getDesc()+":"+insn.getLineNumber()+":"+insn.getInvokedInternalClassName()+"."+insn.getInvokedMethodName()+insn.getInvokedMethodDesc();
+    }
+
 
     public void addProgressMonitor(ProgressMonitor progressMonitor) {
         this.progressMonitors.add(progressMonitor);
@@ -532,7 +561,9 @@ public class Slicer {
             }
 
         }, capabilities);
-
+        
+        if(unSlicedInsnVisitor != null)
+            depExtractor.registerVisitor(unSlicedInsnVisitor, VisitorCapability.INSTRUCTION_EXECUTIONS);
         depExtractor.processBackwardTrace(threadId, multithreaded);
     }
 
@@ -552,6 +583,7 @@ public class Slicer {
             withLongOpt("multithreaded").create('m'));
         options.addOption(OptionBuilder.isRequired(false).hasArg(false).
             withDescription("warn once for each method which is called but not traced").withLongOpt("warn-untraced").create('u'));
+        options.addOption(OptionBuilder.isRequired(false).hasArg(false).withDescription("print out method calls that are traced but not on the slice").withLongOpt("print-uncalled").create('c'));
         return options;
     }
 

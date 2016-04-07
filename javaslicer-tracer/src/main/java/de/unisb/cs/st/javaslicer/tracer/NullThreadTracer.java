@@ -96,4 +96,9 @@ public class NullThreadTracer implements ThreadTracer {
         return 0;
     }
 
+    @Override
+    public void mainStarting() {
+        // nop
+    }
+
 }

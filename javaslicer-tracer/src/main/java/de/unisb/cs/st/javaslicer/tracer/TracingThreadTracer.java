@@ -431,6 +431,16 @@ public class TracingThreadTracer implements ThreadTracer {
         assert this.paused >= 0: "resumed more than paused";
     }
 
+    private boolean mainStarted;
+    @Override
+    public void mainStarting() {
+          if(!mainStarted && this.threadId == 1 && isPaused())
+          {
+              resumeTracing();
+              mainStarted = true;
+          }
+    }
+    
     @Override
 	public boolean isPaused() {
         return this.paused > 0;

@@ -37,7 +37,8 @@ public interface ThreadTracer {
 
     void pauseTracing();
     void resumeTracing();
-
+    void mainStarting();
+    
     boolean isPaused();
 
     void enterMethod(int instructionIndex);

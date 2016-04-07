@@ -246,6 +246,12 @@ public class TracingMethodInstrumenter implements Opcodes {
         this.instructionIterator.add(new InsnNode(DUP));
         this.instructionIterator.add(new VarInsnNode(ASTORE, this.tracerLocalVarIndex));
 
+        if (this.methodNode.name.equals("<clinit>") && classNode.name.equals(TracingClassInstrumenter.getMainClassName())) {
+            this.instructionIterator.add(new VarInsnNode(ALOAD, this.tracerLocalVarIndex));
+            this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
+                    Type.getInternalName(ThreadTracer.class), "mainStarting", "()V", true));
+        }
+        
         this.instructionIterator.add(new MethodInsnNode(INVOKEINTERFACE,
                 Type.getInternalName(ThreadTracer.class), "isPaused", "()Z", true));
         final LabelNode noTracingLabel = new LabelNode();
