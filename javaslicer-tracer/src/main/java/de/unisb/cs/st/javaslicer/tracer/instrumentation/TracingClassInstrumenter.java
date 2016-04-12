@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassWriter;
@@ -67,14 +68,18 @@ public class TracingClassInstrumenter implements Opcodes {
         this.readClass = readClass;
     }
 
-    private static String mainClassName;
-    public static String getMainClassName()
-    {
-        if(mainClassName == null)
-            mainClassName = System.getProperty("sun.java.command").split(" ")[0].replace('.', '/');
+    public static String mainClassName;
+
+    public static String getMainClassName() {
+        if (mainClassName == null) {
+            for (Entry<String, String> e : System.getenv().entrySet()) {
+                if (e.getKey().startsWith("JAVA_MAIN_CLASS_"))
+                    mainClassName = e.getValue().replace('.', '/');
+            }
+            System.out.println("Set main class: " + mainClassName);
+        }
         return mainClassName;
     }
-
     @SuppressWarnings("unchecked")
     public void transform(final ClassNode classNode) {
         final ListIterator<MethodNode> methodIt = classNode.methods.listIterator();

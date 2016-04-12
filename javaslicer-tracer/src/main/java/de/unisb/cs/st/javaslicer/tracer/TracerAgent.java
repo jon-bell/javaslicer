@@ -30,6 +30,7 @@ import java.net.URL;
 import java.util.Scanner;
 
 import de.unisb.cs.st.javaslicer.common.exceptions.TracerException;
+import de.unisb.cs.st.javaslicer.tracer.instrumentation.TracingClassInstrumenter;
 import de.unisb.cs.st.javaslicer.tracer.traceSequences.TraceSequenceFactory;
 import de.unisb.cs.st.javaslicer.tracer.traceSequences.gzip.GZipTraceSequenceFactory;
 import de.unisb.cs.st.javaslicer.tracer.traceSequences.sequitur.SequiturTraceSequenceFactory;
@@ -166,6 +167,7 @@ public class TracerAgent {
             }
             if(appendTestName)
             {
+                TracingClassInstrumenter.mainClassName = "org/apache/maven/surefire/booter/ForkedBooter";
             	try {
         			String arg = System.getProperty("sun.java.command");
         			String[] d = arg.split(" ");
