@@ -232,6 +232,8 @@ public class Slicer {
 
         boolean printUnCalled = cmdLine.hasOption("print-uncalled");
         
+        boolean dontPrintSlice = cmdLine.hasOption("quiet");
+        
         SliceInstructionsCollector collector = new SliceInstructionsCollector();
         slicer.addSliceVisitor(collector);
         if (warnUntracedMethods)
@@ -248,16 +250,14 @@ public class Slicer {
         InstructionInstance[] sliceArray = slice.toArray(new InstructionInstance[slice.size()]);
         Arrays.sort(sliceArray);
 
-        System.out.println("The dynamic slice for criterion " + sc + ":");
-        for (InstructionInstance insn: sliceArray) {
-            System.out.format((Locale)null, "%s.%s:%d %s\n",
-                    insn.getInstruction().getMethod().getReadClass().getName(),
-                    insn.getInstruction().getMethod().getName(),
-                    insn.getInstruction().getLineNumber(),
-                    insn.toString());
-            if(printUnCalled)
-            {
-                slicer.unSlicedInsnVisitor.visitInstructionOnSlice(insn.getInstruction());
+        if (!dontPrintSlice) {
+            System.out.println("The dynamic slice for criterion " + sc + ":");
+            for (InstructionInstance insn : sliceArray) {
+                System.out.format((Locale) null, "%s.%s:%d %s\n", insn.getInstruction().getMethod().getReadClass().getName(), insn.getInstruction().getMethod().getName(), insn.getInstruction()
+                        .getLineNumber(), insn.toString());
+                if (printUnCalled) {
+                    slicer.unSlicedInsnVisitor.visitInstructionOnSlice(insn.getInstruction());
+                }
             }
         }
         System.out.format((Locale)null, "%nSlice consists of %d bytecode instructions.%n", sliceArray.length);
@@ -584,6 +584,7 @@ public class Slicer {
         options.addOption(OptionBuilder.isRequired(false).hasArg(false).
             withDescription("warn once for each method which is called but not traced").withLongOpt("warn-untraced").create('u'));
         options.addOption(OptionBuilder.isRequired(false).hasArg(false).withDescription("print out method calls that are traced but not on the slice").withLongOpt("print-uncalled").create('c'));
+        options.addOption(OptionBuilder.isRequired(false).hasArg(false).withDescription("Dont actually print the slice out").withLongOpt("quiet").create('q'));
         return options;
     }
 
