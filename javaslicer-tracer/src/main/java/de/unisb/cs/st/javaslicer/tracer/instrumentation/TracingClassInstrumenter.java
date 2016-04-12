@@ -73,10 +73,11 @@ public class TracingClassInstrumenter implements Opcodes {
     public static String getMainClassName() {
         if (mainClassName == null) {
             for (Entry<String, String> e : System.getenv().entrySet()) {
-                if (e.getKey().startsWith("JAVA_MAIN_CLASS_"))
+                if (e.getKey().startsWith("JAVA_MAIN_CLASS"))
                     mainClassName = e.getValue().replace('.', '/');
             }
-            System.out.println("Set main class: " + mainClassName);
+            if(mainClassName == null)
+                mainClassName = System.getProperty("sun.java.command").split(" ")[0].replace('.', '/');
         }
         return mainClassName;
     }
