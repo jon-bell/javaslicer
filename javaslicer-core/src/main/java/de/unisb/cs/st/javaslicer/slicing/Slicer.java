@@ -145,6 +145,7 @@ public class Slicer {
             System.exit(0);
         }
 
+        boolean minimizeOutput = cmdLine.hasOption('m');
         String[] additionalArgs = cmdLine.getArgs();
         if (additionalArgs.length != 2) {
             printHelp(options, System.err);
@@ -244,30 +245,59 @@ public class Slicer {
             slicer.unSlicedInsnVisitor = new UnSlicedInstructionVisitor();
         }
         slicer.process(tracing, sc, multithreaded);
-        Set<InstructionInstance> slice = collector.getDynamicSliceInstances();
-        long endTime = System.nanoTime();
+        if(minimizeOutput)
+        {
+            Set<Instruction> slice = collector.getDynamicSlice();
+            HashSet<String> lines = new HashSet<String>();
+            for(Instruction i : slice)
+            {
+            	String k = i.getMethod().getReadClass().getName()+":"+i.getLineNumber();
+            	lines.add(k);
+            }
+            long endTime = System.nanoTime();
 
-        InstructionInstance[] sliceArray = slice.toArray(new InstructionInstance[slice.size()]);
-        Arrays.sort(sliceArray);
+            String[] sliceArray = lines.toArray(new String[lines.size()]);
+            Arrays.sort(sliceArray);
 
-        if (!dontPrintSlice) {
-            System.out.println("The dynamic slice for criterion " + sc + ":");
-            for (InstructionInstance insn : sliceArray) {
-                System.out.format((Locale) null, "%s.%s:%d %s\n", insn.getInstruction().getMethod().getReadClass().getName(), insn.getInstruction().getMethod().getName(), insn.getInstruction()
-                        .getLineNumber(), insn.toString());
-                if (printUnCalled) {
-                    slicer.unSlicedInsnVisitor.visitInstructionOnSlice(insn.getInstruction());
+            if (!dontPrintSlice) {
+                System.out.println("The dynamic slice for criterion " + sc + ":");
+                for (String insn : sliceArray) {
+                    System.out.println(insn);
+                }
+            }
+            System.out.format((Locale) null, "%nSlice consists of %d lines.%n", sliceArray.length);
+            System.out.format((Locale) null, "Computation took %.2f seconds.%n", 1e-9 * (endTime - startTime));
+            if (printUnCalled) {
+                System.out.println("Instructions NOT appearing on slice:");
+                for (Instruction i : slicer.unSlicedInsnVisitor.getInsnsTraced()) {
+                    System.out.println(getInstructionKey((MethodInvocationInstruction) i));
                 }
             }
         }
-        System.out.format((Locale)null, "%nSlice consists of %d bytecode instructions.%n", sliceArray.length);
-        System.out.format((Locale)null, "Computation took %.2f seconds.%n", 1e-9*(endTime-startTime));
-        if(printUnCalled)
-        {
-            System.out.println("Instructions NOT appearing on slice:");
-            for(Instruction i : slicer.unSlicedInsnVisitor.getInsnsTraced())
-            {
-                System.out.println(getInstructionKey((MethodInvocationInstruction) i));
+        else {
+            Set<InstructionInstance> slice = collector.getDynamicSliceInstances();
+            long endTime = System.nanoTime();
+
+            InstructionInstance[] sliceArray = slice.toArray(new InstructionInstance[slice.size()]);
+            Arrays.sort(sliceArray);
+
+            if (!dontPrintSlice) {
+                System.out.println("The dynamic slice for criterion " + sc + ":");
+                for (InstructionInstance insn : sliceArray) {
+                    System.out.format((Locale) null, "%s.%s:%d %s\n", insn.getInstruction().getMethod().getReadClass().getName(), insn.getInstruction().getMethod().getName(), insn.getInstruction()
+                            .getLineNumber(), insn.toString());
+                    if (printUnCalled) {
+                        slicer.unSlicedInsnVisitor.visitInstructionOnSlice(insn.getInstruction());
+                    }
+                }
+            }
+            System.out.format((Locale) null, "%nSlice consists of %d bytecode instructions.%n", sliceArray.length);
+            System.out.format((Locale) null, "Computation took %.2f seconds.%n", 1e-9 * (endTime - startTime));
+            if (printUnCalled) {
+                System.out.println("Instructions NOT appearing on slice:");
+                for (Instruction i : slicer.unSlicedInsnVisitor.getInsnsTraced()) {
+                    System.out.println(getInstructionKey((MethodInvocationInstruction) i));
+                }
             }
         }
     }
@@ -585,6 +615,7 @@ public class Slicer {
             withDescription("warn once for each method which is called but not traced").withLongOpt("warn-untraced").create('u'));
         options.addOption(OptionBuilder.isRequired(false).hasArg(false).withDescription("print out method calls that are traced but not on the slice").withLongOpt("print-uncalled").create('c'));
         options.addOption(OptionBuilder.isRequired(false).hasArg(false).withDescription("Dont actually print the slice out").withLongOpt("quiet").create('q'));
+        options.addOption(OptionBuilder.isRequired(false).hasArg(false).withDescription("Print compacted slice -- each line is printed only once").withLongOpt("minTrace").create('m'));
         return options;
     }
 

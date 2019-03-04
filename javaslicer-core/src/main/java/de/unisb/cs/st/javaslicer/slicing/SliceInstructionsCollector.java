@@ -29,7 +29,6 @@ import java.util.Set;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.Instruction;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionInstance;
 import de.unisb.cs.st.javaslicer.variables.Variable;
-import sun.security.jca.GetInstance.Instance;
 
 
 public class SliceInstructionsCollector implements SliceVisitor {

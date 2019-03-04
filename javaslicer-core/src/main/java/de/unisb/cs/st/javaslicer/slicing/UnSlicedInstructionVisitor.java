@@ -2,11 +2,8 @@ package de.unisb.cs.st.javaslicer.slicing;
 
 import java.util.HashSet;
 
-import sun.security.jca.GetInstance.Instance;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.Instruction;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.InstructionType;
-import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadClass;
-import de.unisb.cs.st.javaslicer.common.classRepresentation.ReadMethod;
 import de.unisb.cs.st.javaslicer.common.classRepresentation.instructions.MethodInvocationInstruction;
 import de.unisb.cs.st.javaslicer.dependenceAnalysis.DependencesVisitorAdapter;
 import de.unisb.cs.st.javaslicer.slicing.Slicer.SlicerInstance;
